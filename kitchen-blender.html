@@ -1,0 +1,804 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Блендер для файлов</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Work+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
+<style>
+  :root{
+    --cream:#F4EEDD;
+    --tile-line:#E4D9BC;
+    --floor-a:#EFE6D0;
+    --floor-b:#DED0AC;
+    --wood-dark:#4C2E18;
+    --wood:#6B4226;
+    --wood-light:#B98A55;
+    --avocado:#748158;
+    --avocado-dark:#5A6544;
+    --mustard:#D9A441;
+    --mustard-dark:#B9861F;
+    --rust:#B5541F;
+    --rust-dark:#8F3F14;
+    --jar:#5FA39C;
+    --jar-dark:#3F7A74;
+    --ink:#2B2620;
+    --ink-soft:#5A5145;
+    --paper:#FBF7EC;
+    --paper-line:#E7DFCB;
+    --ok:#4C7A4A;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--wood-dark);
+    color:var(--ink);
+    font-family:'Work Sans',sans-serif;
+    overflow-x:hidden;
+    min-height:100vh;
+  }
+  h1,h2,.display{
+    font-family:'Fredoka',sans-serif;
+    margin:0;
+  }
+  button{font-family:inherit;}
+
+  /* ---------- HERO / KITCHEN SCENE ---------- */
+  .scene-wrap{
+    position:relative;
+    min-height:100vh;
+    display:flex;
+    flex-direction:column;
+    justify-content:center;
+    padding:32px 0 60px;
+  }
+  .intro{
+    max-width:640px;
+    margin:0 auto 18px;
+    padding:0 28px;
+    text-align:left;
+  }
+  .intro h1{
+    font-size:clamp(28px,4.4vw,42px);
+    font-weight:700;
+    color:var(--paper);
+    line-height:1.05;
+  }
+  .intro p{
+    margin:10px 0 0;
+    font-size:16px;
+    color:#D9CFB8;
+    line-height:1.5;
+    max-width:52ch;
+  }
+  .scene{
+    position:relative;
+    max-width:1100px;
+    margin:18px auto 0;
+    padding:0 16px;
+    transition:filter .5s ease, opacity .5s ease;
+  }
+  .scene.dim{ filter:blur(2px) brightness(.6); pointer-events:none; }
+  .scene svg{ width:100%; height:auto; display:block; }
+
+  .blender-hotspot{ cursor:pointer; }
+  .blender-hotspot .hit{ fill:transparent; }
+  .blender-hotspot:focus-visible .jar-outline{ outline:none; }
+  .blender-hotspot:focus-visible ~ .focus-ring,
+  .blender-hotspot:focus{ outline:none; }
+
+  .pulse-ring{
+    fill:none;
+    stroke:var(--mustard);
+    stroke-width:3;
+    opacity:.55;
+    transform-origin:630px 260px;
+    animation:pulse 2.6s ease-out infinite;
+  }
+  @keyframes pulse{
+    0%{ transform:scale(0.9); opacity:.6; }
+    70%{ transform:scale(1.28); opacity:0; }
+    100%{ transform:scale(1.28); opacity:0; }
+  }
+  @media (prefers-reduced-motion: reduce){
+    .pulse-ring{ animation:none; opacity:.3; }
+  }
+
+  .hint-label{
+    position:absolute;
+    left:66%;
+    top:8%;
+    background:var(--paper);
+    color:var(--ink);
+    font-size:13px;
+    font-weight:500;
+    padding:6px 12px;
+    border-radius:100px;
+    box-shadow:0 4px 10px rgba(0,0,0,.25);
+    pointer-events:none;
+    transition:opacity .4s ease, transform .4s ease;
+  }
+  .hint-label.hidden{ opacity:0; transform:translateY(-6px); }
+
+  .privacy-note{
+    max-width:640px;
+    margin:22px auto 0;
+    padding:0 28px;
+    font-size:13px;
+    color:#B9AF98;
+  }
+
+  /* ---------- PANEL (reveal) ---------- */
+  .panel{
+    position:fixed;
+    inset:0;
+    background:var(--paper);
+    z-index:50;
+    clip-path:circle(0px at var(--ox,50%) var(--oy,50%));
+    transition:clip-path .75s cubic-bezier(.62,0,.23,1);
+    overflow-y:auto;
+  }
+  .panel.open{ clip-path:circle(150% at var(--ox,50%) var(--oy,50%)); }
+  @media (prefers-reduced-motion: reduce){
+    .panel{ transition:opacity .3s ease; clip-path:none !important; opacity:0; display:none;}
+    .panel.open{ opacity:1; display:block; }
+  }
+
+  .panel-inner{
+    max-width:920px;
+    margin:0 auto;
+    padding:26px 24px 80px;
+  }
+  .panel-top{
+    display:flex;
+    align-items:center;
+    gap:14px;
+    margin-bottom:28px;
+  }
+  .back-btn{
+    width:44px;height:44px;border-radius:50%;
+    border:none;
+    background:var(--mustard);
+    color:var(--ink);
+    font-size:18px;
+    cursor:pointer;
+    box-shadow:0 3px 0 var(--mustard-dark);
+    transition:transform .1s ease;
+    flex-shrink:0;
+  }
+  .back-btn:active{ transform:translateY(2px); box-shadow:0 1px 0 var(--mustard-dark); }
+  .panel-top h2{ font-size:22px; color:var(--ink); }
+  .panel-top span{ display:block; font-size:13px; color:var(--ink-soft); font-weight:400; margin-top:2px; }
+
+  .grid{
+    display:grid;
+    grid-template-columns:1fr 1.15fr;
+    gap:36px;
+    align-items:start;
+  }
+  @media (max-width:760px){
+    .grid{ grid-template-columns:1fr; }
+  }
+
+  .steps{ list-style:none; margin:0; padding:0; counter-reset:step; }
+  .steps li{
+    counter-increment:step;
+    position:relative;
+    padding-left:38px;
+    margin-bottom:18px;
+    font-size:15px;
+    line-height:1.5;
+    color:var(--ink);
+  }
+  .steps li::before{
+    content:counter(step);
+    position:absolute; left:0; top:-1px;
+    width:26px;height:26px;
+    border-radius:50%;
+    background:var(--avocado);
+    color:#fff;
+    font-family:'Fredoka',sans-serif;
+    font-size:13px;
+    display:flex;align-items:center;justify-content:center;
+  }
+  .steps strong{ display:block; font-weight:600; margin-bottom:2px; }
+
+  /* jar dropzone */
+  .jar-drop{
+    position:relative;
+    border:3px dashed var(--jar-dark);
+    border-radius:18px 18px 46px 46px;
+    background:linear-gradient(180deg, rgba(95,163,156,.10), rgba(95,163,156,.18));
+    padding:34px 20px;
+    text-align:center;
+    cursor:pointer;
+    transition:background .2s ease, border-color .2s ease;
+  }
+  .jar-drop.hover, .jar-drop:hover{
+    background:linear-gradient(180deg, rgba(95,163,156,.22), rgba(95,163,156,.32));
+    border-color:var(--jar);
+  }
+  .jar-drop input{ display:none; }
+  .jar-drop .jar-icon{ font-size:36px; display:block; margin-bottom:10px; }
+  .jar-drop p{ margin:0; font-size:14px; color:var(--ink-soft); }
+  .jar-drop p.big{ font-size:15px; color:var(--ink); font-weight:500; margin-bottom:4px; }
+
+  .file-chips{
+    display:flex; flex-wrap:wrap; gap:8px;
+    margin:16px 0 0;
+    padding:0; list-style:none;
+  }
+  .file-chips li{
+    display:flex; align-items:center; gap:8px;
+    background:var(--paper);
+    border:1px solid var(--paper-line);
+    border-radius:9px;
+    padding:6px 8px 6px 12px;
+    font-size:13px;
+    max-width:100%;
+  }
+  .file-chips li .name{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:220px; }
+  .file-chips li .size{ color:var(--ink-soft); flex-shrink:0; }
+  .file-chips li button{
+    border:none; background:transparent; color:var(--ink-soft);
+    cursor:pointer; font-size:15px; line-height:1; padding:2px 4px;
+    border-radius:4px;
+  }
+  .file-chips li button:hover{ background:var(--paper-line); color:var(--ink); }
+
+  .type-note{
+    margin:14px 0 0;
+    font-size:13px;
+    color:var(--ink-soft);
+    display:flex; gap:8px; align-items:flex-start;
+  }
+  .type-note.ok{ color:var(--ok); }
+
+  .actions{
+    display:flex; gap:12px; margin-top:20px; flex-wrap:wrap;
+  }
+  .btn{
+    border:none;
+    border-radius:10px;
+    padding:13px 18px;
+    font-size:14.5px;
+    font-weight:600;
+    cursor:pointer;
+    display:inline-flex; align-items:center; gap:8px;
+    transition:transform .1s ease, opacity .15s ease;
+  }
+  .btn:active{ transform:translateY(1px); }
+  .btn[disabled]{ opacity:.45; cursor:not-allowed; }
+  .btn-archive{ background:var(--avocado); color:#fff; box-shadow:0 3px 0 var(--avocado-dark); }
+  .btn-archive:active:not([disabled]){ box-shadow:0 1px 0 var(--avocado-dark); }
+  .btn-merge{ background:var(--rust); color:#fff; box-shadow:0 3px 0 var(--rust-dark); }
+  .btn-merge:active:not([disabled]){ box-shadow:0 1px 0 var(--rust-dark); }
+
+  .status{
+    margin-top:22px;
+    font-size:14px;
+    color:var(--ink-soft);
+    min-height:20px;
+  }
+  .status.blending::after{
+    content:'';
+    display:inline-block;
+    width:14px;height:14px;
+    margin-left:8px;
+    border:2px solid var(--rust);
+    border-top-color:transparent;
+    border-radius:50%;
+    vertical-align:-2px;
+    animation:spin .7s linear infinite;
+  }
+  @keyframes spin{ to{ transform:rotate(360deg); } }
+
+  .result-card{
+    margin-top:22px;
+    background:var(--paper);
+    border:1px solid var(--paper-line);
+    border-radius:14px;
+    padding:20px;
+    display:flex; align-items:center; gap:16px; flex-wrap:wrap;
+  }
+  .result-card .emoji{ font-size:30px; }
+  .result-card .info{ flex:1; min-width:180px; }
+  .result-card .info strong{ display:block; font-size:15px; }
+  .result-card .info span{ font-size:13px; color:var(--ink-soft); }
+  .result-card a.download{
+    background:var(--mustard-dark);
+    color:#fff;
+    text-decoration:none;
+    padding:11px 16px;
+    border-radius:9px;
+    font-size:14px;
+    font-weight:600;
+  }
+  .result-card .reset-link{
+    background:transparent;
+    border:none;
+    color:var(--ink-soft);
+    text-decoration:underline;
+    cursor:pointer;
+    font-size:13px;
+    padding:4px;
+  }
+  .error-box{
+    margin-top:16px;
+    background:#F7E4DD;
+    border:1px solid #E0B4A4;
+    color:#7A3418;
+    padding:12px 14px;
+    border-radius:10px;
+    font-size:13.5px;
+  }
+</style>
+</head>
+<body>
+
+<div class="scene-wrap" id="sceneWrap">
+  <div class="intro">
+    <h1>Блендер для файлов</h1>
+    <p>Занеси файлы на кухню — перетащи их прямо на блендер, или нажми на него, чтобы открыть чашу вручную. А дальше сам реши: сложить всё в пакет или смешать в один файл.</p>
+  </div>
+
+  <div class="scene" id="scene">
+    <span class="hint-label" id="hintLabel">Нажми на блендер ↴</span>
+    <svg viewBox="0 0 1200 640" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Иллюстрация кухни с блендером">
+      <defs>
+        <pattern id="tiles" width="46" height="46" patternUnits="userSpaceOnUse">
+          <rect width="46" height="46" fill="var(--cream)"/>
+          <path d="M0 46 L46 46 L46 0" fill="none" stroke="var(--tile-line)" stroke-width="1"/>
+        </pattern>
+        <pattern id="floor" width="80" height="80" patternUnits="userSpaceOnUse">
+          <rect width="80" height="80" fill="var(--floor-a)"/>
+          <rect width="40" height="40" fill="var(--floor-b)"/>
+          <rect x="40" y="40" width="40" height="40" fill="var(--floor-b)"/>
+        </pattern>
+      </defs>
+
+      <!-- wall & floor -->
+      <rect x="0" y="0" width="1200" height="470" fill="url(#tiles)"/>
+      <rect x="0" y="470" width="1200" height="170" fill="url(#floor)"/>
+
+      <!-- upper cabinets -->
+      <g>
+        <rect x="55" y="36" width="250" height="150" rx="14" fill="var(--avocado)"/>
+        <line x1="180" y1="50" x2="180" y2="172" stroke="var(--avocado-dark)" stroke-width="3"/>
+        <circle cx="150" cy="112" r="5" fill="var(--avocado-dark)"/>
+        <circle cx="210" cy="112" r="5" fill="var(--avocado-dark)"/>
+
+        <rect x="320" y="36" width="250" height="150" rx="14" fill="var(--avocado)"/>
+        <line x1="445" y1="50" x2="445" y2="172" stroke="var(--avocado-dark)" stroke-width="3"/>
+        <circle cx="415" cy="112" r="5" fill="var(--avocado-dark)"/>
+        <circle cx="475" cy="112" r="5" fill="var(--avocado-dark)"/>
+
+        <rect x="585" y="36" width="200" height="150" rx="14" fill="var(--avocado)"/>
+        <line x1="685" y1="50" x2="685" y2="172" stroke="var(--avocado-dark)" stroke-width="3"/>
+        <circle cx="655" cy="112" r="5" fill="var(--avocado-dark)"/>
+        <circle cx="715" cy="112" r="5" fill="var(--avocado-dark)"/>
+      </g>
+
+      <!-- wall socket behind blender -->
+      <rect x="676" y="238" width="20" height="26" rx="3" fill="#3A342B"/>
+      <circle cx="683" cy="248" r="2" fill="#171310"/>
+      <circle cx="690" cy="248" r="2" fill="#171310"/>
+
+      <!-- fridge -->
+      <g>
+        <rect x="930" y="40" width="215" height="420" rx="16" fill="var(--mustard)"/>
+        <line x1="930" y1="150" x2="1145" y2="150" stroke="var(--mustard-dark)" stroke-width="3"/>
+        <rect x="948" y="60" width="10" height="70" rx="5" fill="var(--mustard-dark)"/>
+        <rect x="948" y="175" width="10" height="140" rx="5" fill="var(--mustard-dark)"/>
+        <circle cx="1080" cy="95" r="9" fill="#fff" opacity=".55"/>
+        <circle cx="1105" cy="100" r="6" fill="#fff" opacity=".4"/>
+      </g>
+
+      <!-- countertop base + counter -->
+      <rect x="55" y="460" width="850" height="36" fill="var(--wood-dark)"/>
+      <rect x="55" y="496" width="850" height="140" fill="var(--wood)"/>
+      <g>
+        <rect x="80" y="520" width="170" height="95" rx="8" fill="var(--wood-light)" opacity=".55"/>
+        <circle cx="165" cy="567" r="5" fill="var(--wood-dark)"/>
+        <rect x="290" y="520" width="170" height="95" rx="8" fill="var(--wood-light)" opacity=".55"/>
+        <circle cx="375" cy="567" r="5" fill="var(--wood-dark)"/>
+        <rect x="500" y="520" width="170" height="95" rx="8" fill="var(--wood-light)" opacity=".55"/>
+        <circle cx="585" cy="567" r="5" fill="var(--wood-dark)"/>
+        <rect x="710" y="520" width="170" height="95" rx="8" fill="var(--wood-light)" opacity=".55"/>
+        <circle cx="795" cy="567" r="5" fill="var(--wood-dark)"/>
+      </g>
+
+      <!-- cutting board + knife + rolling pin -->
+      <g>
+        <rect x="95" y="430" width="150" height="20" rx="8" fill="#C9A469"/>
+        <rect x="108" y="418" width="60" height="9" rx="4" fill="#8A6A3A" transform="rotate(-6 108 418)"/>
+        <path d="M115 405 l70 -18 l6 8 l-68 20 z" fill="#C9CDD1"/>
+        <rect x="103" y="405" width="16" height="8" rx="3" fill="#5A4632" transform="rotate(-14 103 405)"/>
+      </g>
+
+      <!-- fruit bowl -->
+      <g>
+        <ellipse cx="300" cy="452" rx="52" ry="12" fill="#00000022"/>
+        <path d="M252 420 a48 26 0 0 0 96 0 z" fill="#8FA6C4"/>
+        <circle cx="282" cy="404" r="17" fill="#C1442E"/>
+        <circle cx="308" cy="398" r="15" fill="#E0A22B"/>
+        <circle cx="322" cy="412" r="14" fill="#7C9A4A"/>
+      </g>
+
+      <!-- toaster -->
+      <g>
+        <rect x="410" y="378" width="96" height="72" rx="10" fill="var(--rust)"/>
+        <rect x="424" y="368" width="22" height="16" rx="4" fill="#8A3B14"/>
+        <rect x="452" y="368" width="22" height="16" rx="4" fill="#8A3B14"/>
+        <rect x="492" y="400" width="9" height="26" rx="4" fill="#8A3B14"/>
+        <circle cx="424" cy="432" r="6" fill="#8A3B14"/>
+      </g>
+
+      <!-- BLENDER (hotspot) -->
+      <g id="blenderHotspot" class="blender-hotspot" tabindex="0" role="button" aria-label="Открыть блендер и загрузить файлы">
+        <path d="M700 260 C700 250, 706 244, 720 244 L720 240 C720 236, 750 236, 750 240 L750 244 C764 244, 770 250, 770 260 L770 386 C770 396, 762 402, 750 402 L720 402 C708 402, 700 396, 700 386 Z"
+              fill="var(--jar)" opacity=".82" class="jar-outline"/>
+        <rect x="708" y="290" width="54" height="4" fill="#ffffff" opacity=".5"/>
+        <rect x="708" y="315" width="54" height="4" fill="#ffffff" opacity=".5"/>
+        <rect x="708" y="340" width="54" height="4" fill="#ffffff" opacity=".5"/>
+        <rect x="713" y="252" width="8" height="130" fill="#ffffff" opacity=".22"/>
+        <ellipse cx="735" cy="240" rx="30" ry="10" fill="var(--jar-dark)"/>
+        <circle cx="735" cy="240" r="6" fill="#2F5B56"/>
+        <path d="M694 392 L776 392 L768 430 C766 440, 704 440, 702 430 Z" fill="var(--mustard)"/>
+        <rect x="682" y="430" width="106" height="46" rx="10" fill="var(--mustard-dark)"/>
+        <circle cx="708" cy="453" r="7" fill="#8A6714"/>
+        <circle cx="730" cy="453" r="7" fill="#8A6714"/>
+        <path d="M752 445 a12 12 0 1 0 0.1 0" fill="none" stroke="#8A6714" stroke-width="3"/>
+        <path d="M735 476 C 735 495, 700 495, 690 265" fill="none" stroke="#3A342B" stroke-width="3" stroke-dasharray="1 7" stroke-linecap="round"/>
+        <circle class="pulse-ring" cx="735" cy="320" r="60"/>
+        <rect class="hit" x="670" y="220" width="140" height="270"/>
+      </g>
+    </svg>
+  </div>
+
+  <p class="privacy-note">Всё происходит прямо в браузере: файлы никуда не отправляются и не сохраняются на сервере.</p>
+</div>
+
+<!-- ================= PANEL ================= -->
+<div class="panel" id="panel" hidden>
+  <div class="panel-inner">
+    <div class="panel-top">
+      <button class="back-btn" id="backBtn" aria-label="Вернуться на кухню">←</button>
+      <div>
+        <h2>Внутри блендера</h2>
+        <span>Загрузи файлы — дальше решай, что с ними сделать</span>
+      </div>
+    </div>
+
+    <div class="grid">
+      <div>
+        <ol class="steps">
+          <li><strong>Закинь файлы</strong>перетащи их в чашу справа или нажми на неё, чтобы выбрать вручную.</li>
+          <li><strong>Выбери режим</strong>«Заархивировать» соберёт файлы в один ZIP как есть; «Смешать» объединит их в один файл — сработает для картинок, PDF или текстовых файлов.</li>
+          <li><strong>Взбей и скачай</strong>через пару секунд появится готовый файл — забирай его.</li>
+        </ol>
+      </div>
+
+      <div>
+        <label class="jar-drop" id="jarDrop">
+          <span class="jar-icon">🫙</span>
+          <p class="big">Перетащи файлы сюда</p>
+          <p>или нажми, чтобы выбрать</p>
+          <input type="file" id="fileInput" multiple>
+        </label>
+
+        <ul class="file-chips" id="fileChips"></ul>
+        <div class="type-note" id="typeNote"></div>
+
+        <div class="actions">
+          <button class="btn btn-archive" id="archiveBtn" disabled>📦 Заархивировать</button>
+          <button class="btn btn-merge" id="mergeBtn" disabled>🥤 Смешать в один файл</button>
+        </div>
+
+        <div class="status" id="status"></div>
+        <div id="errorBox"></div>
+        <div id="resultBox"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  const scene = document.getElementById('scene');
+  const sceneWrap = document.getElementById('sceneWrap');
+  const blender = document.getElementById('blenderHotspot');
+  const panel = document.getElementById('panel');
+  const backBtn = document.getElementById('backBtn');
+  const hintLabel = document.getElementById('hintLabel');
+
+  const jarDrop = document.getElementById('jarDrop');
+  const fileInput = document.getElementById('fileInput');
+  const fileChips = document.getElementById('fileChips');
+  const typeNote = document.getElementById('typeNote');
+  const archiveBtn = document.getElementById('archiveBtn');
+  const mergeBtn = document.getElementById('mergeBtn');
+  const statusEl = document.getElementById('status');
+  const errorBox = document.getElementById('errorBox');
+  const resultBox = document.getElementById('resultBox');
+
+  let files = [];
+  let hintShown = true;
+
+  function fmtSize(bytes){
+    if(bytes < 1024) return bytes + ' Б';
+    if(bytes < 1024*1024) return (bytes/1024).toFixed(1) + ' КБ';
+    return (bytes/1024/1024).toFixed(1) + ' МБ';
+  }
+  function ext(name){
+    const m = /\.([a-z0-9]+)$/i.exec(name);
+    return m ? m[1].toLowerCase() : '';
+  }
+
+  const IMAGE_EXT = ['png','jpg','jpeg','webp','gif','bmp'];
+  const TEXT_EXT = ['txt','md','csv','json','js','ts','css','html','htm','log','xml','yml','yaml'];
+
+  function detectMergeType(list){
+    if(list.length < 2) return null;
+    const exts = list.map(f => ext(f.name));
+    if(exts.every(e => IMAGE_EXT.includes(e))) return 'image';
+    if(exts.every(e => e === 'pdf')) return 'pdf';
+    if(exts.every(e => TEXT_EXT.includes(e))) return 'text';
+    return null;
+  }
+
+  function openBlender(){
+    const rect = blender.getBoundingClientRect();
+    const ox = rect.left + rect.width/2;
+    const oy = rect.top + rect.height/2;
+    panel.style.setProperty('--ox', ox + 'px');
+    panel.style.setProperty('--oy', oy + 'px');
+    panel.hidden = false;
+    scene.classList.add('dim');
+    if(hintShown){
+      hintLabel.classList.add('hidden');
+      hintShown = false;
+    }
+    requestAnimationFrame(() => requestAnimationFrame(() => panel.classList.add('open')));
+    document.body.style.overflow = 'hidden';
+  }
+
+  function closeBlender(){
+    panel.classList.remove('open');
+    scene.classList.remove('dim');
+    document.body.style.overflow = '';
+    setTimeout(() => { panel.hidden = true; }, 750);
+  }
+
+  blender.addEventListener('click', openBlender);
+  blender.addEventListener('keydown', (e) => {
+    if(e.key === 'Enter' || e.key === ' '){ e.preventDefault(); openBlender(); }
+  });
+  backBtn.addEventListener('click', closeBlender);
+
+  // dropping files anywhere on the kitchen opens the blender and adds them
+  ['dragover','drop'].forEach(evt => {
+    document.addEventListener(evt, e => e.preventDefault());
+  });
+  sceneWrap.addEventListener('drop', e => {
+    e.preventDefault();
+    const dropped = Array.from(e.dataTransfer.files || []);
+    if(!dropped.length) return;
+    openBlender();
+    setTimeout(() => addFiles(dropped), 400);
+  });
+
+  jarDrop.addEventListener('click', (e) => {
+    // label already triggers input via for-less nesting; guard double-trigger
+  });
+  jarDrop.addEventListener('dragover', e => { e.preventDefault(); jarDrop.classList.add('hover'); });
+  jarDrop.addEventListener('dragleave', () => jarDrop.classList.remove('hover'));
+  jarDrop.addEventListener('drop', e => {
+    e.preventDefault();
+    jarDrop.classList.remove('hover');
+    addFiles(Array.from(e.dataTransfer.files || []));
+  });
+  fileInput.addEventListener('change', () => {
+    addFiles(Array.from(fileInput.files || []));
+    fileInput.value = '';
+  });
+
+  function addFiles(list){
+    list.forEach(f => {
+      const dup = files.some(x => x.name === f.name && x.size === f.size);
+      if(!dup) files.push(f);
+    });
+    resultBox.innerHTML = '';
+    errorBox.innerHTML = '';
+    statusEl.textContent = '';
+    renderFiles();
+  }
+
+  function removeFile(idx){
+    files.splice(idx,1);
+    renderFiles();
+  }
+
+  function renderFiles(){
+    fileChips.innerHTML = '';
+    files.forEach((f, idx) => {
+      const li = document.createElement('li');
+      li.innerHTML = `<span class="name">${f.name}</span><span class="size">${fmtSize(f.size)}</span>`;
+      const btn = document.createElement('button');
+      btn.textContent = '×';
+      btn.setAttribute('aria-label', 'Убрать файл ' + f.name);
+      btn.addEventListener('click', () => removeFile(idx));
+      li.appendChild(btn);
+      fileChips.appendChild(li);
+    });
+
+    archiveBtn.disabled = files.length === 0;
+    const mergeType = detectMergeType(files);
+    mergeBtn.disabled = !mergeType;
+    mergeBtn.dataset.type = mergeType || '';
+
+    if(files.length === 0){
+      typeNote.textContent = '';
+      typeNote.className = 'type-note';
+    } else if(files.length === 1){
+      typeNote.textContent = 'Смешивать пока нечего — нужен ещё хотя бы один файл. Заархивировать можно уже сейчас.';
+      typeNote.className = 'type-note';
+    } else if(mergeType === 'image'){
+      typeNote.textContent = 'Все файлы — изображения: их можно склеить в одну картинку сверху вниз.';
+      typeNote.className = 'type-note ok';
+    } else if(mergeType === 'pdf'){
+      typeNote.textContent = 'Все файлы — PDF: их можно объединить в один документ по порядку.';
+      typeNote.className = 'type-note ok';
+    } else if(mergeType === 'text'){
+      typeNote.textContent = 'Все файлы текстовые: их можно склеить в один текстовый файл.';
+      typeNote.className = 'type-note ok';
+    } else {
+      typeNote.textContent = 'Файлы слишком разные, чтобы смешать в один — но заархивировать в один пакет можно всегда.';
+      typeNote.className = 'type-note';
+    }
+  }
+
+  function download(blob, filename){
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = filename;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 4000);
+  }
+
+  function showResult(icon, name, size){
+    resultBox.innerHTML = `
+      <div class="result-card">
+        <span class="emoji">${icon}</span>
+        <div class="info"><strong>${name}</strong><span>${size}</span></div>
+        <a class="download" id="dlLink" href="#">Скачать</a>
+        <button class="reset-link" id="resetLink">Начать заново</button>
+      </div>`;
+  }
+
+  function setBusy(isBusy, label){
+    statusEl.classList.toggle('blending', isBusy);
+    statusEl.textContent = label || '';
+    archiveBtn.disabled = isBusy || files.length === 0;
+    mergeBtn.disabled = isBusy || !detectMergeType(files);
+  }
+
+  function showError(msg){
+    errorBox.innerHTML = `<div class="error-box">${msg}</div>`;
+  }
+
+  archiveBtn.addEventListener('click', async () => {
+    if(!files.length) return;
+    errorBox.innerHTML = ''; resultBox.innerHTML = '';
+    setBusy(true, 'Взбиваем в пакет…');
+    try{
+      const zip = new JSZip();
+      files.forEach(f => zip.file(f.name, f));
+      const blob = await zip.generateAsync({type:'blob'});
+      const holder = { blob, name: 'archive.zip' };
+      setBusy(false, 'Готово!');
+      showResult('📦', 'archive.zip', fmtSize(blob.size));
+      bindDownload(holder);
+    }catch(err){
+      setBusy(false, '');
+      showError('Не получилось собрать архив: ' + err.message);
+    }
+  });
+
+  mergeBtn.addEventListener('click', async () => {
+    const type = detectMergeType(files);
+    if(!type) return;
+    errorBox.innerHTML = ''; resultBox.innerHTML = '';
+    setBusy(true, 'Смешиваем файлы…');
+    try{
+      if(type === 'image'){
+        const blob = await mergeImages(files);
+        setBusy(false, 'Готово!');
+        showResult('🖼️', 'merged.png', fmtSize(blob.size));
+        bindDownload({ blob, name: 'merged.png' });
+      } else if(type === 'pdf'){
+        if(!window.PDFLib) throw new Error('библиотека для PDF не загрузилась, попробуй ещё раз');
+        const blob = await mergePdfs(files);
+        setBusy(false, 'Готово!');
+        showResult('📄', 'merged.pdf', fmtSize(blob.size));
+        bindDownload({ blob, name: 'merged.pdf' });
+      } else if(type === 'text'){
+        const blob = await mergeText(files);
+        setBusy(false, 'Готово!');
+        showResult('📝', 'merged.txt', fmtSize(blob.size));
+        bindDownload({ blob, name: 'merged.txt' });
+      }
+    }catch(err){
+      setBusy(false, '');
+      showError('Не получилось смешать файлы: ' + err.message + '. Можно заархивировать вместо этого.');
+    }
+  });
+
+  function bindDownload(holder){
+    const dl = document.getElementById('dlLink');
+    const reset = document.getElementById('resetLink');
+    dl.addEventListener('click', (e) => { e.preventDefault(); download(holder.blob, holder.name); });
+    reset.addEventListener('click', () => {
+      files = [];
+      renderFiles();
+      resultBox.innerHTML = '';
+      statusEl.textContent = '';
+    });
+  }
+
+  async function mergeText(list){
+    const parts = [];
+    for(const f of list){
+      const text = await f.text();
+      parts.push('----- ' + f.name + ' -----\n' + text);
+    }
+    return new Blob([parts.join('\n\n')], {type:'text/plain'});
+  }
+
+  async function mergeImages(list){
+    const imgs = await Promise.all(list.map(f => new Promise((resolve, reject) => {
+      const url = URL.createObjectURL(f);
+      const img = new Image();
+      img.onload = () => resolve(img);
+      img.onerror = reject;
+      img.src = url;
+    })));
+    const width = Math.max(...imgs.map(i => i.naturalWidth));
+    let totalHeight = 0;
+    const scaled = imgs.map(img => {
+      const h = Math.round(img.naturalHeight * (width / img.naturalWidth));
+      totalHeight += h;
+      return { img, h };
+    });
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = totalHeight;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0,0,width,totalHeight);
+    let y = 0;
+    scaled.forEach(({img,h}) => { ctx.drawImage(img, 0, y, width, h); y += h; });
+    return new Promise(resolve => canvas.toBlob(b => resolve(b), 'image/png'));
+  }
+
+  async function mergePdfs(list){
+    const { PDFDocument } = window.PDFLib;
+    const merged = await PDFDocument.create();
+    for(const f of list){
+      const bytes = await f.arrayBuffer();
+      const src = await PDFDocument.load(bytes);
+      const pages = await merged.copyPages(src, src.getPageIndices());
+      pages.forEach(p => merged.addPage(p));
+    }
+    const bytes = await merged.save();
+    return new Blob([bytes], {type:'application/pdf'});
+  }
+
+  renderFiles();
+})();
+</script>
+</body>
+</html>
