@@ -1,0 +1,2565 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>блендер</title>
+
+  <!-- typography -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Work+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+  <!-- tailwind css -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- three.js & orbitcontrols -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+
+  <!-- jszip & pdf-lib -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
+
+  <style>
+    :root {
+      --wood-dark: #24140b;
+      --cream: #f5efeb;
+      --mustard: #d49438;
+      --avocado: #5e7847;
+      --rust: #ba472a;
+      --slate: #3b474f;
+      --ink: #211b14;
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      padding: 0;
+      width: 100vw;
+      height: 100vh;
+      overflow: hidden;
+      background-color: var(--wood-dark);
+      font-family: 'Work Sans', sans-serif;
+      color: var(--ink);
+      user-select: none;
+    }
+
+    .font-retro { font-family: 'Fredoka', cursive, sans-serif; }
+    .font-code { font-family: 'JetBrains Mono', monospace; }
+
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: #e7deca; }
+    ::-webkit-scrollbar-thumb { background: #a99b7e; border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: #8f8163; }
+
+    .btn-press {
+      transition: transform 0.08s ease, box-shadow 0.08s ease;
+    }
+    .btn-press:active {
+      transform: translateY(2px);
+      box-shadow: none !important;
+    }
+  </style>
+</head>
+<body class="relative w-screen h-screen">
+
+  <canvas id="webglCanvas" class="w-full h-full block cursor-grab active:cursor-grabbing"></canvas>
+
+  <!-- drag & drop overlay -->
+  <div id="dragDropOverlay" class="absolute inset-4 pointer-events-none rounded-3xl border-4 border-dashed border-[#d49438] bg-[#24140b]/60 backdrop-blur-[2px] flex items-center justify-center opacity-0 transition-opacity duration-200 z-30">
+    <div class="px-8 py-5 rounded-2xl bg-[#f5efeb] border-2 border-[#d49438] shadow-2xl text-center">
+      <div class="w-12 h-12 mx-auto mb-2 text-[#d49438]">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-full h-full"><path d="M4 22h16a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v16a2 2 0 0 1-2 2Zm0 0a2 2 0 0 1-2-2v-9c0-1.1.9-2 2-2h2"/><path d="M18 14h-8"/><path d="M15 11l3 3-3 3"/></svg>
+      </div>
+      <p class="font-retro text-lg font-bold text-[#211b14]">drop files into blender</p>
+      <p class="text-xs text-[#5e5244] mt-1 font-medium">notes, photos, pdfs, or coins</p>
+    </div>
+  </div>
+
+  <header class="absolute top-0 left-0 right-0 p-3 sm:p-5 flex items-center justify-between pointer-events-none z-20">
+    <div class="flex items-center gap-3 pointer-events-auto">
+      <div class="w-10 h-10 rounded-xl bg-[#d49438] border border-amber-600/40 flex items-center justify-center text-stone-900 font-retro font-bold text-xl shadow-[0_2px_0_#9e6b18]">
+        б
+      </div>
+      <div>
+        <h1 class="font-retro text-base sm:text-lg font-bold text-[#f5efeb] drop-shadow-[0_2px_4px_rgba(0,0,0,0.85)] flex items-center gap-2">
+          блендер
+          <span class="text-[10px] px-2 py-0.5 rounded-full bg-[#5e7847] text-white font-normal">kitchen 1974</span>
+        </h1>
+        <p class="text-[11px] text-amber-200/80 drop-shadow hidden sm:block">pull slot lever &bull; toss files & coins &bull; blend into gold</p>
+      </div>
+    </div>
+
+    <!-- casino credits & header utilities -->
+    <div class="flex items-center gap-2 pointer-events-auto">
+      <div class="px-3.5 py-1.5 rounded-xl bg-[#1b1009]/90 border border-amber-700/60 shadow backdrop-blur flex items-center gap-2 text-xs">
+        <span class="text-[10px] uppercase font-bold text-amber-400 font-retro tracking-wider">credits:</span>
+        <span id="displayCredits" class="font-code font-bold text-sm text-yellow-300">100</span>
+      </div>
+
+      <div class="flex items-center bg-[#1b1009]/90 rounded-xl border border-amber-800/50 p-0.5 text-xs font-retro">
+        <button id="btnBet5" class="px-2 py-1 rounded-lg text-amber-200 bg-amber-700/40 font-bold">5</button>
+        <button id="btnBet10" class="px-2 py-1 rounded-lg text-amber-300 font-bold hover:bg-white/10">10</button>
+        <button id="btnBet25" class="px-2 py-1 rounded-lg text-amber-300 font-bold hover:bg-white/10">25</button>
+      </div>
+
+      <button id="btnSoundToggle" class="btn-press px-3 py-1.5 rounded-xl text-xs font-semibold bg-[#211208]/85 hover:bg-[#321b0d] text-amber-100 border border-amber-900/40 shadow backdrop-blur flex items-center gap-1.5" title="toggle audio">
+        <span id="soundDot" class="w-2 h-2 rounded-full bg-emerald-400"></span>
+        <span id="soundText" class="hidden sm:inline">audio on</span>
+      </button>
+
+      <button id="btnCreateNote" class="btn-press px-3.5 py-1.5 rounded-xl text-xs font-bold font-retro bg-[#d49438] hover:bg-[#c28429] text-stone-950 shadow-[0_2px_0_#8f5e12] flex items-center gap-1">
+        <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+        <span>new note</span>
+      </button>
+
+      <input type="file" id="systemFileInput" multiple class="hidden">
+      <button id="btnPickFiles" class="btn-press px-3.5 py-1.5 rounded-xl text-xs font-semibold bg-[#f5efeb] hover:bg-white text-stone-900 shadow-[0_2px_0_#bcb39e] flex items-center gap-1">
+        <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2h-16a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+        <span>add files</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- interactive raycast tooltip -->
+  <div id="hoverTooltip" class="absolute pointer-events-none opacity-0 transition-opacity duration-150 transform -translate-x-1/2 -translate-y-12 z-30 bg-[#211b14]/95 text-amber-100 px-3 py-1.5 rounded-lg shadow-xl text-xs font-medium border border-amber-900/50 backdrop-blur-sm whitespace-nowrap">
+    <span id="tooltipContent">item</span>
+  </div>
+
+  <!-- float alert indicator for winnings -->
+  <div id="winBanner" class="absolute top-20 left-1/2 -translate-x-1/2 z-30 pointer-events-none opacity-0 transition-all duration-300 transform -translate-y-4">
+    <div class="px-6 py-2.5 rounded-2xl bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-500 border-2 border-yellow-200 text-stone-950 font-retro font-bold text-base shadow-[0_4px_20px_rgba(212,148,56,0.6)] flex items-center gap-2">
+      <span id="winBannerText">winner! +50 credits</span>
+    </div>
+  </div>
+
+  <!-- blended output badge -->
+  <div id="outputPromptBanner" class="absolute bottom-6 left-1/2 -translate-x-1/2 z-20 pointer-events-none opacity-0 translate-y-4 transition-all duration-300 w-auto max-w-md">
+    <div class="bg-[#1c0f07]/90 backdrop-blur-md px-5 py-3 rounded-2xl border border-amber-800/60 shadow-2xl flex items-center gap-3.5 text-xs text-amber-100 pointer-events-auto">
+      <div class="w-3 h-3 rounded-full bg-[#5e7847] animate-ping shrink-0"></div>
+      <div class="flex-1">
+        <p class="font-bold text-white text-sm" id="bannerResultName">single blended item ready</p>
+        <p class="text-[11px] text-amber-200/80">click item in jar to download, or clear to toss to table</p>
+      </div>
+      <button id="bannerDownloadBtn" class="btn-press px-3.5 py-1.5 rounded-xl text-xs font-bold font-retro bg-[#d49438] hover:bg-[#c28429] text-stone-950 shadow-[0_2px_0_#8f5e12]">
+        download
+      </button>
+    </div>
+  </div>
+
+  <!-- text modal -->
+  <div id="textModal" class="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm hidden flex items-center justify-center p-3 sm:p-6">
+    <div class="bg-[#faf6ee] w-full max-w-3xl h-[84vh] rounded-2xl border-2 border-[#d8ceb9] shadow-2xl flex flex-col overflow-hidden">
+      <div class="px-5 py-3 bg-[#e7dfcc] border-b border-[#d5cbba] flex items-center justify-between">
+        <div class="flex items-center gap-2.5">
+          <div class="w-7 h-7 rounded bg-[#5e7847] text-white flex items-center justify-center font-code text-xs font-bold">txt</div>
+          <div>
+            <h3 class="font-retro font-bold text-sm sm:text-base text-[#211b14]" id="textModalTitle">edit note</h3>
+            <p class="text-[11px] text-[#695d4d] font-code" id="textModalSubtitle">0 kb</p>
+          </div>
+        </div>
+        <button id="btnCloseTextModal" class="w-8 h-8 rounded-lg bg-[#dcd1ba] hover:bg-[#c8ba9d] text-[#332a1f] flex items-center justify-center font-bold text-base transition-colors">
+          <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+        </button>
+      </div>
+      <div class="px-4 py-2 bg-[#f1e9d7] border-b border-[#d8ceb9] flex flex-wrap items-center justify-between gap-2 text-xs">
+        <div class="flex items-center gap-1.5">
+          <button id="btnPrettifyJson" class="px-2.5 py-1 rounded bg-[#e4dac7] hover:bg-[#d4c8b1] font-medium text-stone-800 border border-[#cebf9e]">format json</button>
+          <button id="btnCaseUpper" class="px-2.5 py-1 rounded bg-[#e4dac7] hover:bg-[#d4c8b1] font-medium text-stone-800 border border-[#cebf9e]">uppercase</button>
+          <button id="btnCaseLower" class="px-2.5 py-1 rounded bg-[#e4dac7] hover:bg-[#d4c8b1] font-medium text-stone-800 border border-[#cebf9e]">lowercase</button>
+        </div>
+        <span id="textStatsDisplay" class="text-[#6d6151] font-code text-[11px]">lines: 1 | chars: 0</span>
+      </div>
+      <div class="flex-1 flex overflow-hidden bg-white">
+        <div id="textLineGutter" class="font-code text-xs px-3 py-3 bg-[#f6f1e3] text-right border-r border-[#e5dac4] text-[#a39783] select-none min-w-[44px] overflow-hidden leading-relaxed">1</div>
+        <textarea id="textEditorArea" spellcheck="false" class="font-code text-xs sm:text-sm p-3 w-full h-full resize-none border-none outline-none leading-relaxed text-[#211b14] bg-transparent overflow-auto"></textarea>
+      </div>
+      <div class="px-5 py-3 bg-[#e7dfcc] border-t border-[#d5cbba] flex flex-wrap items-center justify-between gap-3">
+        <div class="flex items-center gap-2">
+          <label class="text-xs text-[#5d5244] font-semibold">filename:</label>
+          <input type="text" id="textFilenameInput" class="px-2.5 py-1 text-xs rounded border border-[#c6bba5] bg-white font-code text-stone-900 w-44 sm:w-60">
+        </div>
+        <div class="flex items-center gap-2">
+          <button id="btnDeleteCurrentFile" class="px-3 py-1.5 rounded-xl text-xs font-semibold bg-[#dec3b8] hover:bg-[#cdaca0] text-rose-950 flex items-center gap-1">
+            <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
+            <span>eject to table</span>
+          </button>
+          <button id="btnDiscardText" class="px-3.5 py-1.5 rounded-xl text-xs font-semibold bg-[#dcd1ba] hover:bg-[#c8ba9d] text-stone-800">cancel</button>
+          <button id="btnSaveText" class="btn-press px-4 py-1.5 rounded-xl text-xs font-bold font-retro bg-[#5e7847] hover:bg-[#4e643a] text-white shadow-[0_2px_0_#38482a]">save file</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- image modal -->
+  <div id="imageModal" class="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm hidden flex items-center justify-center p-3 sm:p-6">
+    <div class="bg-[#faf6ee] w-full max-w-2xl max-h-[90vh] rounded-2xl border-2 border-[#d8ceb9] shadow-2xl flex flex-col overflow-hidden">
+      <div class="px-5 py-3 bg-[#e7dfcc] border-b border-[#d5cbba] flex items-center justify-between">
+        <div class="flex items-center gap-2.5">
+          <div class="w-7 h-7 rounded bg-[#d49438] text-white flex items-center justify-center font-code text-xs font-bold">img</div>
+          <h3 class="font-retro font-bold text-sm sm:text-base text-[#211b14]" id="imageModalTitle">photo adjustments</h3>
+        </div>
+        <button id="btnCloseImageModal" class="w-8 h-8 rounded-lg bg-[#dcd1ba] hover:bg-[#c8ba9d] text-[#332a1f] flex items-center justify-center font-bold text-base transition-colors">
+          <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+        </button>
+      </div>
+      <div class="flex-1 bg-[#201a15] p-4 flex items-center justify-center overflow-auto min-h-[260px]">
+        <canvas id="imageCanvasPreview" class="max-w-full max-h-[380px] object-contain rounded shadow-lg border border-stone-700"></canvas>
+      </div>
+      <div class="p-4 bg-[#f1e9d7] border-t border-[#d5cbba] space-y-3 text-xs">
+        <div class="flex flex-wrap items-center justify-between gap-2">
+          <div class="flex items-center gap-1.5">
+            <button id="btnImgRotateCCW" class="px-2.5 py-1.5 rounded bg-[#e4dac7] hover:bg-[#d4c8b1] font-medium text-stone-800 border border-[#cebf9e]">rotate -90°</button>
+            <button id="btnImgRotateCW" class="px-2.5 py-1.5 rounded bg-[#e4dac7] hover:bg-[#d4c8b1] font-medium text-stone-800 border border-[#cebf9e]">rotate +90°</button>
+            <button id="btnImgFlipH" class="px-2.5 py-1.5 rounded bg-[#e4dac7] hover:bg-[#d4c8b1] font-medium text-stone-800 border border-[#cebf9e]">flip horizontal</button>
+          </div>
+          <div class="flex items-center gap-2">
+            <span class="font-semibold text-[#5d5244]">tone filter:</span>
+            <select id="selectImgFilter" class="bg-white border border-[#c6bba5] rounded px-2 py-1 text-xs">
+              <option value="none">standard color</option>
+              <option value="monochrome">monochrome</option>
+              <option value="sepia">warm vintage</option>
+              <option value="invert">negative</option>
+            </select>
+          </div>
+        </div>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+          <div class="flex items-center gap-2">
+            <label class="w-18 font-medium text-[#5d5244]">brightness:</label>
+            <input id="sliderBrightness" type="range" min="-100" max="100" value="0" class="flex-1 accent-[#d49438]">
+            <span id="valBrightness" class="w-7 font-code text-right">0</span>
+          </div>
+          <div class="flex items-center gap-2">
+            <label class="w-18 font-medium text-[#5d5244]">contrast:</label>
+            <input id="sliderContrast" type="range" min="-100" max="100" value="0" class="flex-1 accent-[#d49438]">
+            <span id="valContrast" class="w-7 font-code text-right">0</span>
+          </div>
+        </div>
+      </div>
+      <div class="px-5 py-3 bg-[#e7dfcc] border-t border-[#d5cbba] flex items-center justify-between">
+        <button id="btnResetImgFilters" class="text-xs text-stone-600 hover:text-stone-900 underline">reset adjustments</button>
+        <div class="flex items-center gap-2">
+          <button id="btnDiscardImage" class="px-3.5 py-1.5 rounded-xl text-xs font-semibold bg-[#dcd1ba] hover:bg-[#c8ba9d] text-stone-800">cancel</button>
+          <button id="btnSaveImage" class="btn-press px-4 py-1.5 rounded-xl text-xs font-bold font-retro bg-[#d49438] hover:bg-[#c28429] text-stone-950 shadow-[0_2px_0_#8f5e12]">apply changes</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- toast shelf -->
+  <div id="toastShelf" class="fixed top-16 right-4 z-50 flex flex-col gap-2 pointer-events-none"></div>
+
+  <script>
+  const appState = {
+    files: [],
+    tableFiles: [],
+    coins: [],
+    blendedResult: null,
+    soundOn: true,
+    audioCtx: null,
+
+    blenderMotor: null,
+    isBlending: false,
+    activeEditIndex: -1,
+    activeEditLocation: 'jar',
+
+    flyingFiles: [],
+    lidState: 'closed',
+    lidOpenAmount: 0.0,
+    lidAutoCloseTimer: null,
+
+    buttons: {},
+
+    // slot casino state
+    credits: 100,
+    activeBet: 5,
+    isSpinningSlots: false,
+    reels: [],
+    reelTargets: [0, 0, 0],
+    slotSymbols: ['7', 'BAR', 'CHERRY', 'LEMON', 'BELL', 'STAR'],
+
+    // 3d drag & flick momentum
+    dragObject: null,
+    dragRecord: null,
+    dragPlane: new THREE.Plane(),
+    dragIntersection: new THREE.Vector3(),
+    dragOffset: new THREE.Vector3(),
+    isDragging: false,
+    dragHistory: [],
+  };
+
+  const EXTENSIONS = {
+    image: ['png', 'jpg', 'jpeg', 'webp', 'gif', 'bmp'],
+    text: ['txt', 'md', 'js', 'ts', 'jsx', 'tsx', 'html', 'css', 'json', 'py', 'csv', 'yaml', 'yml', 'xml', 'log', 'sql'],
+    pdf: ['pdf'],
+    archive: ['zip', 'rar', '7z', 'tar', 'gz'],
+  };
+
+  function getCategory(name) {
+    const ext = name.split('.').pop().toLowerCase();
+    if (EXTENSIONS.image.includes(ext)) return 'image';
+    if (EXTENSIONS.text.includes(ext)) return 'text';
+    if (EXTENSIONS.pdf.includes(ext)) return 'pdf';
+    if (EXTENSIONS.archive.includes(ext)) return 'archive';
+    return 'other';
+  }
+
+  function formatBytes(bytes) {
+    if (bytes === 0) return '0 b';
+    if (bytes < 1024) return bytes + ' b';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' kb';
+    return (bytes / (1024 * 1024)).toFixed(1) + ' mb';
+  }
+
+  function triggerToast(message, variant = 'info') {
+    const el = document.createElement('div');
+    const color = variant === 'error' ? 'bg-[#ba472a] text-white' : variant === 'success' ? 'bg-[#5e7847] text-white' : 'bg-[#d49438] text-stone-950';
+    el.className = `px-3.5 py-2 rounded-xl shadow-2xl text-xs font-semibold ${color} transition-all duration-300 transform -translate-y-2 opacity-0 pointer-events-auto border border-black/15`;
+    el.textContent = message.toLowerCase();
+    document.getElementById('toastShelf').appendChild(el);
+    requestAnimationFrame(() => el.classList.remove('-translate-y-2', 'opacity-0'));
+    setTimeout(() => {
+      el.classList.add('opacity-0', '-translate-y-2');
+      setTimeout(() => el.remove(), 250);
+    }, 2800);
+  }
+
+  function triggerWinBanner(text) {
+    const b = document.getElementById('winBanner');
+    const bt = document.getElementById('winBannerText');
+    bt.textContent = text.toLowerCase();
+    b.classList.remove('opacity-0', '-translate-y-4');
+    setTimeout(() => {
+      b.classList.add('opacity-0', '-translate-y-4');
+    }, 3200);
+  }
+
+  // web audio engine
+  function initAudioContext() {
+    if (appState.audioCtx) {
+      if (appState.audioCtx.state === 'suspended') appState.audioCtx.resume();
+      return;
+    }
+    try {
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      appState.audioCtx = new AudioCtx();
+      const ctx = appState.audioCtx;
+
+      const masterGain = ctx.createGain();
+      masterGain.gain.setValueAtTime(0, ctx.currentTime);
+      masterGain.connect(ctx.destination);
+
+      const oscLow = ctx.createOscillator();
+      oscLow.type = 'sawtooth';
+      oscLow.frequency.setValueAtTime(82, ctx.currentTime);
+
+      const oscHigh = ctx.createOscillator();
+      oscHigh.type = 'sawtooth';
+      oscHigh.frequency.setValueAtTime(245, ctx.currentTime);
+
+      const filter = ctx.createBiquadFilter();
+      filter.type = 'lowpass';
+      filter.frequency.setValueAtTime(550, ctx.currentTime);
+
+      oscLow.connect(filter);
+      oscHigh.connect(filter);
+      filter.connect(masterGain);
+
+      const bufferSize = ctx.sampleRate * 2;
+      const noiseBuffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+      const data = noiseBuffer.getChannelData(0);
+      for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
+      const noiseNode = ctx.createBufferSource();
+      noiseNode.buffer = noiseBuffer;
+      noiseNode.loop = true;
+
+      const nFilter = ctx.createBiquadFilter();
+      nFilter.type = 'bandpass';
+      nFilter.frequency.setValueAtTime(750, ctx.currentTime);
+      nFilter.Q.setValueAtTime(1.8, ctx.currentTime);
+      const nGain = ctx.createGain();
+      nGain.gain.setValueAtTime(0.35, ctx.currentTime);
+      noiseNode.connect(nFilter);
+      nFilter.connect(nGain);
+      nGain.connect(masterGain);
+
+      oscLow.start();
+      oscHigh.start();
+      noiseNode.start();
+
+      appState.blenderMotor = { masterGain, oscLow, oscHigh, filter };
+    } catch (e) {
+      console.warn(e);
+    }
+  }
+
+  function playTone(freq, duration = 0.05, type = 'square', vol = 0.25) {
+    if (!appState.soundOn) return;
+    initAudioContext();
+    if (!appState.audioCtx) return;
+    const ctx = appState.audioCtx;
+    const osc = ctx.createOscillator();
+    const g = ctx.createGain();
+    osc.type = type;
+    osc.frequency.setValueAtTime(freq, ctx.currentTime);
+    g.gain.setValueAtTime(vol, ctx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
+    osc.connect(g);
+    g.connect(ctx.destination);
+    osc.start();
+    osc.stop(ctx.currentTime + duration);
+  }
+
+  function playButtonSnapSound(isRelease = false) {
+    playTone(isRelease ? 180 : 340, 0.04, 'square', 0.22);
+  }
+
+  function playCoinClink(vol = 0.3) {
+    if (!appState.soundOn) return;
+    initAudioContext();
+    if (!appState.audioCtx) return;
+    const ctx = appState.audioCtx;
+    const f = 2400 + Math.random() * 1200;
+    playTone(f, 0.09, 'sine', vol);
+  }
+
+  function playCashRegisterSound() {
+    if (!appState.soundOn) return;
+    initAudioContext();
+    if (!appState.audioCtx) return;
+    const ctx = appState.audioCtx;
+    const t = ctx.currentTime;
+    [1046, 1318, 1567, 2093].forEach((freq, idx) => {
+      const osc = ctx.createOscillator();
+      const g = ctx.createGain();
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(freq, t + idx * 0.06);
+      g.gain.setValueAtTime(0.22, t + idx * 0.06);
+      g.gain.exponentialRampToValueAtTime(0.001, t + idx * 0.06 + 0.15);
+      osc.connect(g);
+      g.connect(ctx.destination);
+      osc.start(t + idx * 0.06);
+      osc.stop(t + idx * 0.06 + 0.16);
+    });
+  }
+
+  function playReelRatchet() {
+    playTone(420 + Math.random() * 180, 0.025, 'triangle', 0.15);
+  }
+
+  function playWoodThudSound(volumeScale = 1.0) {
+    playTone(95, 0.08, 'triangle', 0.25 * Math.min(1.0, volumeScale));
+  }
+
+  function playLidSound(isOpen) {
+    playTone(isOpen ? 380 : 180, 0.14, 'sine', 0.18);
+  }
+
+  function startBlenderMotorSound() {
+    if (!appState.soundOn) return;
+    initAudioContext();
+    if (!appState.blenderMotor || !appState.audioCtx) return;
+    const ctx = appState.audioCtx;
+    const t = ctx.currentTime;
+    const m = appState.blenderMotor;
+    m.oscLow.frequency.setValueAtTime(60, t);
+    m.oscLow.frequency.exponentialRampToValueAtTime(115, t + 0.3);
+    m.oscHigh.frequency.setValueAtTime(160, t);
+    m.oscHigh.frequency.exponentialRampToValueAtTime(360, t + 0.32);
+    m.masterGain.gain.setValueAtTime(0.001, t);
+    m.masterGain.gain.linearRampToValueAtTime(0.28, t + 0.15);
+  }
+
+  function stopBlenderMotorSound() {
+    if (!appState.blenderMotor || !appState.audioCtx) return;
+    const ctx = appState.audioCtx;
+    const t = ctx.currentTime;
+    const m = appState.blenderMotor;
+    m.masterGain.gain.setValueAtTime(m.masterGain.gain.value, t);
+    m.masterGain.gain.linearRampToValueAtTime(0.001, t + 0.45);
+  }
+
+  // top bar buttons
+  document.getElementById('btnSoundToggle').addEventListener('click', () => {
+    initAudioContext();
+    appState.soundOn = !appState.soundOn;
+    const dot = document.getElementById('soundDot');
+    const text = document.getElementById('soundText');
+    if (appState.soundOn) {
+      dot.className = 'w-2 h-2 rounded-full bg-emerald-400';
+      text.textContent = 'audio on';
+      triggerToast('audio active', 'info');
+    } else {
+      dot.className = 'w-2 h-2 rounded-full bg-stone-500';
+      text.textContent = 'audio off';
+      stopBlenderMotorSound();
+    }
+  });
+
+  ['btnBet5', 'btnBet10', 'btnBet25'].forEach(id => {
+    document.getElementById(id).addEventListener('click', (e) => {
+      const betVal = parseInt(e.target.textContent);
+      appState.activeBet = betVal;
+      document.querySelectorAll('#btnBet5, #btnBet10, #btnBet25').forEach(b => {
+        b.className = 'px-2 py-1 rounded-lg text-amber-300 font-bold hover:bg-white/10';
+      });
+      e.target.className = 'px-2 py-1 rounded-lg text-amber-200 bg-amber-700/60 font-bold';
+      playTone(480, 0.04, 'square', 0.18);
+    });
+  });
+
+  // three.js setup
+  const canvas = document.getElementById('webglCanvas');
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x24140b);
+
+  const camera = new THREE.PerspectiveCamera(52, window.innerWidth / window.innerHeight, 0.1, 100);
+  function adjustCameraFraming() {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.fov = 52;
+    if (camera.aspect < 1.0) camera.position.set(0, 1.95, 5.8);
+    else camera.position.set(0, 1.85, 4.8);
+    camera.updateProjectionMatrix();
+  }
+
+  const renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true });
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.15;
+
+  const controls = new THREE.OrbitControls(camera, renderer.domElement);
+  controls.enableDamping = true;
+  controls.dampingFactor = 0.08;
+  controls.target.set(0, 1.35, 0);
+  controls.minDistance = 1.2;
+  controls.maxDistance = 11.5;
+  controls.minPolarAngle = Math.PI * 0.12;
+  controls.maxPolarAngle = Math.PI * 0.47;
+
+  adjustCameraFraming();
+
+  const ambientWarm = new THREE.AmbientLight(0xffebd4, 1.0);
+  scene.add(ambientWarm);
+
+  const overheadLight = new THREE.DirectionalLight(0xfff3e0, 1.45);
+  overheadLight.position.set(2.4, 7.5, 4.5);
+  overheadLight.castShadow = true;
+  overheadLight.shadow.mapSize.width = 1024;
+  overheadLight.shadow.mapSize.height = 1024;
+  overheadLight.shadow.bias = -0.0006;
+  scene.add(overheadLight);
+
+  const warmBounce = new THREE.PointLight(0xd49438, 0.65, 14);
+  warmBounce.position.set(-3.5, 2.5, 2.0);
+  scene.add(warmBounce);
+
+  // butcher block table surface (y = 0.0)
+  const tableMesh = new THREE.Mesh(
+    new THREE.BoxGeometry(20, 1.2, 10),
+    new THREE.MeshStandardMaterial({ color: 0x462712, roughness: 0.55, metalness: 0.05 })
+  );
+  tableMesh.position.set(0, -0.6, 0);
+  tableMesh.receiveShadow = true;
+  scene.add(tableMesh);
+
+  // tile backsplash
+  const tileCanvas = document.createElement('canvas');
+  tileCanvas.width = 256; tileCanvas.height = 256;
+  const tCtx = tileCanvas.getContext('2d');
+  tCtx.fillStyle = '#e8dec7'; tCtx.fillRect(0, 0, 256, 256);
+  tCtx.strokeStyle = '#d1c4a5'; tCtx.lineWidth = 4; tCtx.strokeRect(2, 2, 252, 252);
+  tCtx.fillStyle = '#e2d6bc'; tCtx.fillRect(8, 8, 116, 116); tCtx.fillRect(132, 132, 116, 116);
+
+  const tileTexture = new THREE.CanvasTexture(tileCanvas);
+  tileTexture.wrapS = THREE.RepeatWrapping; tileTexture.wrapT = THREE.RepeatWrapping;
+  tileTexture.repeat.set(10, 5);
+
+  const wallMesh = new THREE.Mesh(
+    new THREE.PlaneGeometry(26, 14),
+    new THREE.MeshStandardMaterial({ map: tileTexture, roughness: 0.45 })
+  );
+  wallMesh.position.set(0, 4.8, -4.2);
+  scene.add(wallMesh);
+
+  // wall clock
+  function createClockFaceTexture() {
+    const cv = document.createElement('canvas');
+    cv.width = 512; cv.height = 512;
+    const ctx = cv.getContext('2d');
+    ctx.fillStyle = '#fdfcf7';
+    ctx.beginPath(); ctx.arc(256, 256, 250, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = '#d1b48c'; ctx.lineWidth = 8; ctx.stroke();
+    ctx.strokeStyle = '#2b1c10'; ctx.lineWidth = 2.5;
+    ctx.beginPath(); ctx.arc(256, 256, 232, 0, Math.PI * 2); ctx.stroke();
+
+    for (let i = 0; i < 60; i++) {
+      const rad = (i * Math.PI) / 30;
+      const isHour = i % 5 === 0;
+      ctx.lineWidth = isHour ? 4.5 : 2;
+      ctx.strokeStyle = isHour ? '#2b1c10' : '#8a7b68';
+      ctx.beginPath();
+      ctx.moveTo(256 + Math.sin(rad) * (isHour ? 212 : 222), 256 - Math.cos(rad) * (isHour ? 212 : 222));
+      ctx.lineTo(256 + Math.sin(rad) * 232, 256 - Math.cos(rad) * 232);
+      ctx.stroke();
+    }
+
+    ctx.fillStyle = '#24140b';
+    ctx.font = 'bold 42px "Fredoka", sans-serif';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    for (let num = 1; num <= 12; num++) {
+      const rad = (num * Math.PI) / 6;
+      ctx.fillText(num.toString(), 256 + Math.sin(rad) * 172, 256 - Math.cos(rad) * 172);
+    }
+    ctx.font = '600 15px "Work Sans", sans-serif';
+    ctx.fillStyle = '#ba472a';
+    ctx.fillText('1974 quartz', 256, 310);
+    return new THREE.CanvasTexture(cv);
+  }
+
+  const clockGroup = new THREE.Group();
+  clockGroup.position.set(0, 4.6, -4.15);
+  scene.add(clockGroup);
+
+  const clockRim = new THREE.Mesh(new THREE.CylinderGeometry(0.74, 0.74, 0.12, 36), new THREE.MeshStandardMaterial({ color: 0xba472a, roughness: 0.35 }));
+  clockRim.rotation.x = Math.PI / 2;
+  clockGroup.add(clockRim);
+
+  const clockFace = new THREE.Mesh(new THREE.CylinderGeometry(0.66, 0.66, 0.125, 36), new THREE.MeshStandardMaterial({ map: createClockFaceTexture(), roughness: 0.3 }));
+  clockFace.rotation.x = Math.PI / 2;
+  clockGroup.add(clockFace);
+
+  const hourHandPivot = new THREE.Group();
+  const hHand = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.32, 0.02), new THREE.MeshStandardMaterial({ color: 0x24140b }));
+  hHand.position.set(0, 0.13, 0.08);
+  hourHandPivot.add(hHand);
+  clockGroup.add(hourHandPivot);
+
+  const minuteHandPivot = new THREE.Group();
+  const mHand = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.46, 0.02), new THREE.MeshStandardMaterial({ color: 0x24140b }));
+  mHand.position.set(0, 0.2, 0.09);
+  minuteHandPivot.add(mHand);
+  clockGroup.add(minuteHandPivot);
+
+  const secondHandPivot = new THREE.Group();
+  const sHand = new THREE.Mesh(new THREE.BoxGeometry(0.015, 0.52, 0.02), new THREE.MeshStandardMaterial({ color: 0xba472a }));
+  sHand.position.set(0, 0.22, 0.1);
+  secondHandPivot.add(sHand);
+  clockGroup.add(secondHandPivot);
+
+  // kitchen decor & props
+  const decorGroup = new THREE.Group();
+  scene.add(decorGroup);
+
+  // cutting board (top surface at y = 0.08)
+  const cutBoard = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.08, 1.3), new THREE.MeshStandardMaterial({ color: 0x9e693d, roughness: 0.6 }));
+  cutBoard.position.set(-2.6, 0.04, 1.2);
+  cutBoard.rotation.y = 0.12;
+  decorGroup.add(cutBoard);
+
+  for (let l = 0; l < 2; l++) {
+    const lemon = new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.24, 0.04, 18), new THREE.MeshStandardMaterial({ color: 0xf2c629, roughness: 0.4 }));
+    lemon.position.set(-2.7 + l * 0.35, 0.10, 1.15 + l * 0.15);
+    decorGroup.add(lemon);
+  }
+
+  const knifeBlade = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.015, 0.18), new THREE.MeshStandardMaterial({ color: 0xeeeeee, metalness: 0.9, roughness: 0.15 }));
+  knifeBlade.position.set(-2.3, 0.095, 1.45); knifeBlade.rotation.y = -0.28;
+  decorGroup.add(knifeBlade);
+
+  // moka pot
+  const mokaGroup = new THREE.Group();
+  mokaGroup.position.set(-2.0, 0.0, -0.4);
+  decorGroup.add(mokaGroup);
+  const aluMat = new THREE.MeshStandardMaterial({ color: 0xdcdcdc, roughness: 0.3, metalness: 0.85 });
+  const mBoiler = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.38, 0.44, 8), aluMat); mBoiler.position.y = 0.22; mokaGroup.add(mBoiler);
+  const mKettle = new THREE.Mesh(new THREE.CylinderGeometry(0.36, 0.28, 0.48, 8), aluMat); mKettle.position.y = 0.72; mokaGroup.add(mKettle);
+  const mLid = new THREE.Mesh(new THREE.ConeGeometry(0.38, 0.16, 8), aluMat); mLid.position.y = 1.02; mokaGroup.add(mLid);
+
+  // coffee mug & steam
+  const coffeeMug = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.26, 0.58, 20), new THREE.MeshStandardMaterial({ color: 0xe8dec7, roughness: 0.35 }));
+  coffeeMug.position.set(2.4, 0.29, 1.45);
+  decorGroup.add(coffeeMug);
+
+  const steamParticles = [];
+  for (let st = 0; st < 6; st++) {
+    const steam = new THREE.Mesh(new THREE.SphereGeometry(0.045, 8, 8), new THREE.MeshBasicMaterial({ color: 0xfff3e0, transparent: true, opacity: 0.25 }));
+    steam.position.set(2.4 + (Math.random() - 0.5) * 0.15, 0.6 + st * 0.12, 1.45 + (Math.random() - 0.5) * 0.15);
+    decorGroup.add(steam);
+    steamParticles.push({ mesh: steam, baseSpeed: 0.008 + Math.random() * 0.006 });
+  }
+
+  // coin intake receiver on the table
+  const intakeGroup = new THREE.Group();
+  intakeGroup.position.set(2.35, 0.0, 0.35);
+  scene.add(intakeGroup);
+
+  const hopperBase = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.48, 0.56, 0.22, 24),
+    new THREE.MeshStandardMaterial({ color: 0xb58752, roughness: 0.35, metalness: 0.7 })
+  );
+  hopperBase.position.y = 0.11;
+  intakeGroup.add(hopperBase);
+
+  const hopperFunnel = new THREE.Mesh(
+    new THREE.ConeGeometry(0.46, 0.24, 24, 1, true),
+    new THREE.MeshStandardMaterial({ color: 0x8a602f, roughness: 0.3, metalness: 0.8, side: THREE.DoubleSide })
+  );
+  hopperFunnel.position.y = 0.24;
+  hopperFunnel.rotation.x = Math.PI;
+  intakeGroup.add(hopperFunnel);
+
+  const hopperSlot = new THREE.Mesh(
+    new THREE.BoxGeometry(0.32, 0.05, 0.08),
+    new THREE.MeshBasicMaterial({ color: 0x0a0705 })
+  );
+  hopperSlot.position.y = 0.18;
+  intakeGroup.add(hopperSlot);
+
+  const neonRing = new THREE.Mesh(
+    new THREE.RingGeometry(0.48, 0.54, 32),
+    new THREE.MeshBasicMaterial({ color: 0xf59e0b, side: THREE.DoubleSide })
+  );
+  neonRing.rotation.x = -Math.PI / 2;
+  neonRing.position.y = 0.23;
+  intakeGroup.add(neonRing);
+
+  // coin intake badge
+  const cBadgeCanvas = document.createElement('canvas');
+  cBadgeCanvas.width = 256; cBadgeCanvas.height = 64;
+  const cbCtx = cBadgeCanvas.getContext('2d');
+  cbCtx.fillStyle = '#1c1510'; cbCtx.fillRect(0, 0, 256, 64);
+  cbCtx.strokeStyle = '#d49438'; cbCtx.lineWidth = 4; cbCtx.strokeRect(2, 2, 252, 60);
+  cbCtx.font = 'bold 22px Fredoka, sans-serif'; cbCtx.fillStyle = '#fef08a';
+  cbCtx.textAlign = 'center'; cbCtx.textBaseline = 'middle';
+  cbCtx.fillText('coin intake (+10)', 128, 32);
+  const cbTex = new THREE.CanvasTexture(cBadgeCanvas);
+  const hopperBadge = new THREE.Mesh(new THREE.PlaneGeometry(0.64, 0.16), new THREE.MeshBasicMaterial({ map: cbTex }));
+  hopperBadge.position.set(0, 0.12, 0.58);
+  intakeGroup.add(hopperBadge);
+
+  // blender base model
+  const blenderGroup = new THREE.Group();
+  scene.add(blenderGroup);
+
+  const mustardMat = new THREE.MeshStandardMaterial({ color: 0xd49438, roughness: 0.35, metalness: 0.08 });
+  const chromeMat = new THREE.MeshStandardMaterial({ color: 0xeeeeee, metalness: 0.92, roughness: 0.12 });
+  const rubberMat = new THREE.MeshStandardMaterial({ color: 0x1f1a17, roughness: 0.85 });
+  const glassMat = new THREE.MeshPhysicalMaterial({
+    color: 0x6dbab0, transparent: true, opacity: 0.36, roughness: 0.06, metalness: 0.02, transmission: 0.9, ior: 1.48, depthWrite: false
+  });
+
+  const baseBottom = new THREE.Mesh(new THREE.CylinderGeometry(1.2, 1.35, 0.38, 36), mustardMat);
+  baseBottom.position.y = 0.19;
+  blenderGroup.add(baseBottom);
+
+  const chromeBelt = new THREE.Mesh(new THREE.CylinderGeometry(1.22, 1.22, 0.08, 36), chromeMat);
+  chromeBelt.position.y = 0.42;
+  blenderGroup.add(chromeBelt);
+
+  const baseTop = new THREE.Mesh(new THREE.CylinderGeometry(0.96, 1.2, 0.65, 36), mustardMat);
+  baseTop.position.y = 0.78;
+  blenderGroup.add(baseTop);
+
+  // prominent slot machine unit
+  const slotsGroup = new THREE.Group();
+  slotsGroup.position.set(0, 0.96, 1.08);
+  slotsGroup.rotation.x = -0.28;
+  blenderGroup.add(slotsGroup);
+
+  const slotHousing = new THREE.Mesh(
+    new THREE.BoxGeometry(1.68, 0.52, 0.22),
+    new THREE.MeshStandardMaterial({ color: 0x221811, metalness: 0.7, roughness: 0.3 })
+  );
+  slotsGroup.add(slotHousing);
+
+  const slotBezel = new THREE.Mesh(
+    new THREE.BoxGeometry(1.58, 0.42, 0.04),
+    new THREE.MeshStandardMaterial({ color: 0xb58752, metalness: 0.85, roughness: 0.2 })
+  );
+  slotBezel.position.z = 0.11;
+  slotsGroup.add(slotBezel);
+
+  const slotCavity = new THREE.Mesh(
+    new THREE.BoxGeometry(1.42, 0.34, 0.16),
+    new THREE.MeshBasicMaterial({ color: 0x0d0805 })
+  );
+  slotCavity.position.z = 0.08;
+  slotsGroup.add(slotCavity);
+
+  const slotLight = new THREE.PointLight(0xfff5d0, 2.2, 2.2);
+  slotLight.position.set(0, 0.08, 0.35);
+  slotsGroup.add(slotLight);
+
+  const payline = new THREE.Mesh(
+    new THREE.BoxGeometry(1.44, 0.016, 0.02),
+    new THREE.MeshBasicMaterial({ color: 0xef4444 })
+  );
+  payline.position.set(0, 0, 0.17);
+  slotsGroup.add(payline);
+
+  // slot reel canvas texture
+  function createSlotReelsTexture() {
+    const cv = document.createElement('canvas');
+    cv.width = 1536; cv.height = 256;
+    const ctx = cv.getContext('2d');
+
+    const symbols = [
+      { label: '7', color: '#e53935', bg: '#fff8e1' },
+      { label: 'bar', color: '#1e88e5', bg: '#eceff1' },
+      { label: 'cherry', color: '#d81b60', bg: '#fce4ec' },
+      { label: 'lemon', color: '#fbc02d', bg: '#fffde7' },
+      { label: 'bell', color: '#fb8c00', bg: '#fff3e0' },
+      { label: 'star', color: '#8e24aa', bg: '#f3e5f5' },
+    ];
+
+    for (let i = 0; i < 6; i++) {
+      const s = symbols[i];
+      const segX = i * 256;
+      ctx.fillStyle = s.bg;
+      ctx.fillRect(segX, 0, 256, 256);
+      ctx.strokeStyle = '#d4af37';
+      ctx.lineWidth = 6;
+      ctx.strokeRect(segX + 4, 4, 248, 248);
+
+      ctx.save();
+      ctx.translate(segX + 128, 128);
+      ctx.rotate(-Math.PI / 2);
+      ctx.fillStyle = s.color;
+      ctx.strokeStyle = '#211b14';
+      ctx.lineWidth = 5;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+
+      if (s.label === '7') {
+        ctx.font = '900 135px "Fredoka", sans-serif';
+        ctx.strokeText('7', 0, 6);
+        ctx.fillText('7', 0, 6);
+      } else if (s.label === 'bar') {
+        ctx.fillStyle = '#211b14';
+        ctx.fillRect(-85, -34, 170, 68);
+        ctx.fillStyle = '#ffffff';
+        ctx.font = '900 46px "Fredoka", sans-serif';
+        ctx.fillText('bar', 0, 4);
+      } else {
+        ctx.font = '900 48px "Fredoka", sans-serif';
+        ctx.strokeText(s.label, 0, 0);
+        ctx.fillText(s.label, 0, 0);
+      }
+      ctx.restore();
+    }
+
+    const tex = new THREE.CanvasTexture(cv);
+    tex.wrapS = THREE.RepeatWrapping;
+    tex.wrapT = THREE.RepeatWrapping;
+    return tex;
+  }
+
+  const slotReelsTexture = createSlotReelsTexture();
+  const reelGeom = new THREE.CylinderGeometry(0.165, 0.165, 0.28, 36);
+  reelGeom.rotateZ(Math.PI / 2);
+
+  const reelMat = new THREE.MeshBasicMaterial({ map: slotReelsTexture });
+
+  appState.reels = [];
+  const reelXs = [-0.46, 0.0, 0.46];
+  for (let r = 0; r < 3; r++) {
+    const reel = new THREE.Mesh(reelGeom, reelMat);
+    reel.position.set(reelXs[r], 0.0, 0.08);
+    slotsGroup.add(reel);
+    appState.reels.push({
+      mesh: reel,
+      speed: 0,
+      targetAngle: 0,
+      isStopping: false,
+    });
+  }
+
+  // slot machine pull lever
+  const leverBase = new THREE.Group();
+  leverBase.position.set(1.24, 0.74, 0.15);
+  blenderGroup.add(leverBase);
+
+  const lSocket = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.14, 0.16, 18), chromeMat);
+  lSocket.rotation.z = Math.PI / 2;
+  leverBase.add(lSocket);
+
+  const leverArmGroup = new THREE.Group();
+  leverBase.add(leverArmGroup);
+
+  const lShaft = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, 0.65, 14), chromeMat);
+  lShaft.position.y = 0.32;
+  leverArmGroup.add(lShaft);
+
+  const lKnob = new THREE.Mesh(new THREE.SphereGeometry(0.12, 18, 18), new THREE.MeshStandardMaterial({ color: 0xef4444, roughness: 0.2 }));
+  lKnob.position.y = 0.65;
+  leverArmGroup.add(lKnob);
+
+  const leverCollider = new THREE.Mesh(new THREE.BoxGeometry(0.45, 0.85, 0.45), new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false }));
+  leverCollider.position.y = 0.35;
+  leverArmGroup.add(leverCollider);
+  leverCollider.userData = { isLever: true };
+
+  // mechanical buttons console plate
+  const consoleGroup = new THREE.Group();
+  consoleGroup.position.set(0, 0.54, 1.22);
+  consoleGroup.rotation.x = -0.42;
+  blenderGroup.add(consoleGroup);
+
+  const consolePlate = new THREE.Mesh(new THREE.BoxGeometry(1.75, 0.45, 0.08), chromeMat);
+  consolePlate.castShadow = true;
+  consoleGroup.add(consolePlate);
+
+  const clickableObjects = [leverCollider];
+
+  function createMechanicalButton(actionId, labelText, hexColor, posX) {
+    const btnGroup = new THREE.Group();
+    btnGroup.position.set(posX, 0.04, 0.04);
+
+    const bezel = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.2, 0.14, 24), chromeMat);
+    bezel.rotation.x = Math.PI / 2;
+    bezel.position.z = 0.02;
+    btnGroup.add(bezel);
+
+    const capMat = new THREE.MeshStandardMaterial({ color: hexColor, roughness: 0.25, metalness: 0.15 });
+    const cap = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.15, 0.16, 24), capMat);
+    cap.rotation.x = Math.PI / 2;
+    cap.position.z = 0.08;
+    btnGroup.add(cap);
+
+    const lCanvas = document.createElement('canvas');
+    lCanvas.width = 128; lCanvas.height = 48;
+    const lCtx = lCanvas.getContext('2d');
+    lCtx.fillStyle = '#1c1510'; lCtx.fillRect(0, 0, 128, 48);
+    lCtx.strokeStyle = '#d49438'; lCtx.lineWidth = 3; lCtx.strokeRect(2, 2, 124, 44);
+    lCtx.font = 'bold 22px Fredoka, sans-serif'; lCtx.fillStyle = '#faf7f0';
+    lCtx.textAlign = 'center'; lCtx.textBaseline = 'middle';
+    lCtx.fillText(labelText.toLowerCase(), 64, 24);
+
+    const lblTex = new THREE.CanvasTexture(lCanvas);
+    const labelMesh = new THREE.Mesh(new THREE.PlaneGeometry(0.38, 0.14), new THREE.MeshBasicMaterial({ map: lblTex }));
+    labelMesh.position.set(0, -0.16, 0.045);
+    btnGroup.add(labelMesh);
+
+    const collider = new THREE.Mesh(
+      new THREE.BoxGeometry(0.48, 0.48, 0.35),
+      new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false })
+    );
+    collider.position.set(0, 0, 0.1);
+    btnGroup.add(collider);
+
+    consoleGroup.add(btnGroup);
+
+    const buttonData = {
+      isButton: true,
+      action: actionId,
+      label: labelText.toLowerCase(),
+      capMesh: cap,
+      restZ: 0.08,
+      depressedZ: -0.03,
+      isLockedDown: false,
+    };
+
+    collider.userData = buttonData;
+    cap.userData = buttonData;
+    clickableObjects.push(collider, cap);
+    appState.buttons[actionId] = buttonData;
+  }
+
+  createMechanicalButton('zip', 'zip', 0x5e7847, -0.52);
+  createMechanicalButton('blend', 'blend', 0xba472a, 0.0);
+  createMechanicalButton('clear', 'clear', 0x3b474f, 0.52);
+
+  function pressButtonMechanically(btnData, lockUntilFinished = false) {
+    playButtonSnapSound(false);
+    btnData.capMesh.position.z = btnData.depressedZ;
+    if (lockUntilFinished) {
+      btnData.isLockedDown = true;
+    } else {
+      setTimeout(() => {
+        if (!btnData.isLockedDown) {
+          btnData.capMesh.position.z = btnData.restZ;
+          playButtonSnapSound(true);
+        }
+      }, 160);
+    }
+  }
+
+  function releaseButtonMechanically(btnData) {
+    if (!btnData) return;
+    btnData.isLockedDown = false;
+    btnData.capMesh.position.z = btnData.restZ;
+    playButtonSnapSound(true);
+  }
+
+  // blender jar & lid
+  const jarGroup = new THREE.Group();
+  jarGroup.position.y = 1.15;
+  blenderGroup.add(jarGroup);
+
+  const jarCollar = new THREE.Mesh(new THREE.CylinderGeometry(1.02, 1.08, 0.28, 32), rubberMat);
+  jarCollar.position.y = 0.14;
+  jarGroup.add(jarCollar);
+
+  const jarBody = new THREE.Mesh(new THREE.CylinderGeometry(1.12, 0.86, 2.1, 8, 1, true), glassMat);
+  jarBody.position.y = 1.25;
+  jarGroup.add(jarBody);
+
+  for (let m = 0; m < 4; m++) {
+    const markRing = new THREE.Mesh(
+      new THREE.RingGeometry(0.92 + m * 0.05, 0.94 + m * 0.05, 16),
+      new THREE.MeshBasicMaterial({ color: 0xffffff, opacity: 0.35, transparent: true, side: THREE.DoubleSide })
+    );
+    markRing.rotation.x = Math.PI / 2;
+    markRing.position.y = 0.65 + m * 0.35;
+    jarGroup.add(markRing);
+  }
+
+  const jarHandle = new THREE.Mesh(new THREE.TorusGeometry(0.58, 0.09, 16, 24, Math.PI), glassMat);
+  jarHandle.position.set(1.12, 1.3, 0);
+  jarHandle.rotation.z = -Math.PI / 2;
+  jarGroup.add(jarHandle);
+
+  // hinged lid
+  const lidPivot = new THREE.Group();
+  lidPivot.position.set(0, 2.34, -0.95);
+  jarGroup.add(lidPivot);
+
+  const lidAssembly = new THREE.Group();
+  lidAssembly.position.set(0, 0, 0.95);
+  lidPivot.add(lidAssembly);
+
+  const jarLid = new THREE.Mesh(new THREE.CylinderGeometry(1.18, 1.12, 0.18, 24), rubberMat);
+  lidAssembly.add(jarLid);
+  const lidStopper = new THREE.Mesh(new THREE.CylinderGeometry(0.32, 0.32, 0.22, 16), glassMat);
+  lidStopper.position.y = 0.16;
+  lidAssembly.add(lidStopper);
+
+  function triggerLidOpen(autoCloseDelay = 1400) {
+    if (appState.lidState !== 'open' && appState.lidState !== 'opening') playLidSound(true);
+    appState.lidState = 'opening';
+    if (appState.lidAutoCloseTimer) clearTimeout(appState.lidAutoCloseTimer);
+    if (autoCloseDelay > 0) {
+      appState.lidAutoCloseTimer = setTimeout(() => triggerLidClose(), autoCloseDelay);
+    }
+  }
+
+  function triggerLidClose() {
+    if (appState.lidState === 'open' || appState.lidState === 'opening') {
+      playLidSound(false);
+      appState.lidState = 'closing';
+    }
+  }
+
+  // blades
+  const bladeAssembly = new THREE.Group();
+  bladeAssembly.position.set(0, 0.32, 0);
+  jarGroup.add(bladeAssembly);
+  const bladeHub = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.18, 0.1, 16), chromeMat);
+  bladeAssembly.add(bladeHub);
+  for (let b = 0; b < 4; b++) {
+    const arm = new THREE.Mesh(new THREE.BoxGeometry(0.68, 0.03, 0.12), chromeMat);
+    arm.rotation.y = (Math.PI / 2) * b;
+    arm.position.x = Math.cos((Math.PI / 2) * b) * 0.32;
+    arm.position.z = Math.sin((Math.PI / 2) * b) * 0.32;
+    bladeAssembly.add(arm);
+  }
+
+  // puree mesh & splash
+  const liquidMat = new THREE.MeshStandardMaterial({ color: 0xd49438, roughness: 0.25, metalness: 0.05, transparent: true, opacity: 0 });
+  const liquidMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.96, 0.72, 1.4, 24), liquidMat);
+  liquidMesh.position.y = 0.95; liquidMesh.scale.set(0.001, 0.001, 0.001);
+  jarGroup.add(liquidMesh);
+
+  const splashParticles = [];
+  for (let sp = 0; sp < 50; sp++) {
+    const drop = new THREE.Mesh(new THREE.SphereGeometry(0.05, 8, 8), new THREE.MeshBasicMaterial({ color: 0xd49438 }));
+    drop.visible = false;
+    jarGroup.add(drop);
+    splashParticles.push({ mesh: drop, angle: Math.random() * Math.PI * 2, rad: 0.1 + Math.random() * 0.5, y: 0.35 + Math.random() * 1.3, speed: 6 + Math.random() * 8 });
+  }
+
+  const jarContentsGroup = new THREE.Group();
+  jarGroup.add(jarContentsGroup);
+
+  // 3d file & coin model builders
+  function attachCollider(group, w, h, d, targetFlatX = -Math.PI / 2, targetFlatZ = 0) {
+    const col = new THREE.Mesh(
+      new THREE.BoxGeometry(w + 0.18, h + 0.18, d + 0.18),
+      new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false })
+    );
+    group.add(col);
+    group.userData.hitCollider = col;
+    group.userData.targetFlatX = targetFlatX;
+    group.userData.targetFlatZ = targetFlatZ;
+    return col;
+  }
+
+  function buildNotebookMesh(title) {
+    const group = new THREE.Group();
+    const paper = new THREE.Mesh(new THREE.BoxGeometry(0.68, 0.88, 0.11), new THREE.MeshStandardMaterial({ color: 0xf5f0de, roughness: 0.65 }));
+    group.add(paper);
+    const spine = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.16, 0.13), new THREE.MeshStandardMaterial({ color: 0x5e7847, roughness: 0.5 }));
+    spine.position.y = 0.38; group.add(spine);
+
+    const cv = document.createElement('canvas'); cv.width = 128; cv.height = 128;
+    const cx = cv.getContext('2d');
+    cx.fillStyle = '#faf7ec'; cx.fillRect(0, 0, 128, 128);
+    cx.fillStyle = '#5e7847'; cx.fillRect(0, 0, 128, 16);
+    cx.fillStyle = '#211b14'; cx.font = 'bold 13px JetBrains Mono, monospace';
+    cx.fillText(title.slice(0, 12).toLowerCase(), 6, 42);
+    const tex = new THREE.CanvasTexture(cv);
+    const labelMesh = new THREE.Mesh(new THREE.PlaneGeometry(0.58, 0.58), new THREE.MeshBasicMaterial({ map: tex }));
+    labelMesh.position.set(0, -0.05, 0.065);
+    group.add(labelMesh);
+
+    attachCollider(group, 0.72, 0.9, 0.14, -Math.PI / 2, 0);
+    return group;
+  }
+
+  function buildPolaroidMesh(title, imgEl) {
+    const group = new THREE.Group();
+    const card = new THREE.Mesh(new THREE.BoxGeometry(0.76, 0.96, 0.035), new THREE.MeshStandardMaterial({ color: 0xf9f6ee, roughness: 0.4 }));
+    group.add(card);
+
+    const c = document.createElement('canvas'); c.width = 256; c.height = 256;
+    const ctx = c.getContext('2d');
+    ctx.fillStyle = '#211b14'; ctx.fillRect(0, 0, 256, 256);
+    if (imgEl) ctx.drawImage(imgEl, 0, 0, 256, 256);
+    else { ctx.fillStyle = '#d49438'; ctx.font = 'bold 36px Fredoka, sans-serif'; ctx.textAlign = 'center'; ctx.fillText('img', 128, 140); }
+
+    const photoTex = new THREE.CanvasTexture(c);
+    const photo = new THREE.Mesh(new THREE.PlaneGeometry(0.62, 0.62), new THREE.MeshBasicMaterial({ map: photoTex }));
+    photo.position.set(0, 0.1, 0.022); group.add(photo);
+
+    group.userData.photoCanvas = c;
+    group.userData.photoTexture = photoTex;
+    attachCollider(group, 0.8, 1.0, 0.06, -Math.PI / 2, 0);
+    return group;
+  }
+
+  function buildPdfBinderMesh() {
+    const group = new THREE.Group();
+    const cover = new THREE.Mesh(new THREE.BoxGeometry(0.72, 0.96, 0.13), new THREE.MeshStandardMaterial({ color: 0xba472a, roughness: 0.45 }));
+    group.add(cover);
+    const pages = new THREE.Mesh(new THREE.BoxGeometry(0.68, 0.9, 0.11), new THREE.MeshStandardMaterial({ color: 0xffffff }));
+    pages.position.x = 0.03; group.add(pages);
+    attachCollider(group, 0.76, 1.0, 0.15, -Math.PI / 2, 0);
+    return group;
+  }
+
+  function buildBookStackMesh() {
+    const group = new THREE.Group();
+    const colors = [0x5e7847, 0xd49438, 0xba472a];
+    // pivot centers around lowest book at bottom y = 0
+    for (let i = 0; i < 3; i++) {
+      const book = new THREE.Mesh(new THREE.BoxGeometry(0.65, 0.10, 0.82), new THREE.MeshStandardMaterial({ color: colors[i], roughness: 0.55 }));
+      book.position.y = 0.05 + i * 0.11;
+      book.rotation.y = (i - 1) * 0.12;
+      group.add(book);
+    }
+    attachCollider(group, 0.70, 0.36, 0.86, 0, 0);
+    return group;
+  }
+
+  function buildFloppyMesh() {
+    const group = new THREE.Group();
+    const disk = new THREE.Mesh(new THREE.BoxGeometry(0.74, 0.78, 0.07), new THREE.MeshStandardMaterial({ color: 0x333f48, roughness: 0.4 }));
+    group.add(disk);
+    attachCollider(group, 0.78, 0.82, 0.09, -Math.PI / 2, 0);
+    return group;
+  }
+
+  function buildCoinMesh() {
+    const group = new THREE.Group();
+    const cCv = document.createElement('canvas'); cCv.width = 128; cCv.height = 128;
+    const cCtx = cCv.getContext('2d');
+    cCtx.fillStyle = '#f59e0b'; cCtx.beginPath(); cCtx.arc(64, 64, 60, 0, Math.PI * 2); cCtx.fill();
+    cCtx.strokeStyle = '#b45309'; cCtx.lineWidth = 6; cCtx.stroke();
+    cCtx.fillStyle = '#78350f'; cCtx.font = '900 68px "Fredoka", sans-serif';
+    cCtx.textAlign = 'center'; cCtx.textBaseline = 'middle';
+    cCtx.fillText('★', 64, 68);
+
+    const cTex = new THREE.CanvasTexture(cCv);
+    const coinGeom = new THREE.CylinderGeometry(0.18, 0.18, 0.05, 24);
+    const coinMat = new THREE.MeshStandardMaterial({ color: 0xfbbf24, metalness: 0.85, roughness: 0.25 });
+    const coinMesh = new THREE.Mesh(coinGeom, coinMat);
+    group.add(coinMesh);
+
+    const faceGeom = new THREE.PlaneGeometry(0.34, 0.34);
+    const faceMat = new THREE.MeshBasicMaterial({ map: cTex, transparent: true });
+    const fTop = new THREE.Mesh(faceGeom, faceMat); fTop.rotation.x = -Math.PI / 2; fTop.position.y = 0.026; group.add(fTop);
+    const fBot = new THREE.Mesh(faceGeom, faceMat); fBot.rotation.x = Math.PI / 2; fBot.position.y = -0.026; group.add(fBot);
+
+    attachCollider(group, 0.38, 0.08, 0.38, 0, 0);
+    return group;
+  }
+
+  function buildGoldBullionMesh() {
+    const group = new THREE.Group();
+    const bar = new THREE.Mesh(
+      new THREE.BoxGeometry(0.9, 0.22, 0.45),
+      new THREE.MeshStandardMaterial({ color: 0xf59e0b, metalness: 0.95, roughness: 0.15 })
+    );
+    group.add(bar);
+
+    const cv = document.createElement('canvas'); cv.width = 256; cv.height = 128;
+    const cx = cv.getContext('2d');
+    cx.fillStyle = '#d97706'; cx.fillRect(0, 0, 256, 128);
+    cx.fillStyle = '#fef08a'; cx.font = '900 32px Fredoka, sans-serif';
+    cx.textAlign = 'center'; cx.fillText('999.9 pure gold', 128, 54);
+    cx.font = '20px JetBrains Mono, monospace'; cx.fillText('chef bullion bar', 128, 92);
+    const tex = new THREE.CanvasTexture(cv);
+    const badge = new THREE.Mesh(new THREE.PlaneGeometry(0.8, 0.35), new THREE.MeshBasicMaterial({ map: tex }));
+    badge.rotation.x = -Math.PI / 2;
+    badge.position.y = 0.112;
+    group.add(badge);
+
+    attachCollider(group, 0.95, 0.25, 0.5, 0, 0);
+    return group;
+  }
+
+  // add file to blender
+  async function addFileToBlender(fileObj, injectedText = null) {
+    if (appState.blendedResult) clearJarWithAnimation();
+    triggerLidOpen(2000);
+
+    const category = getCategory(fileObj.name);
+    let previewImg = null;
+    let textData = injectedText;
+
+    if (category === 'text' && textData === null) {
+      try { textData = await fileObj.text(); } catch (e) { textData = ''; }
+    } else if (category === 'image') {
+      previewImg = await new Promise(resolve => {
+        const reader = new FileReader();
+        reader.onload = ev => {
+          const img = new Image();
+          img.onload = () => resolve(img);
+          img.src = ev.target.result;
+        };
+        reader.readAsDataURL(fileObj);
+      });
+    }
+
+    let model;
+    if (category === 'text') model = buildNotebookMesh(fileObj.name);
+    else if (category === 'image') model = buildPolaroidMesh(fileObj.name, previewImg);
+    else if (category === 'pdf') model = buildPdfBinderMesh();
+    else if (category === 'archive') model = buildBookStackMesh();
+    else model = buildFloppyMesh();
+
+    const fileId = 'f_' + Math.random().toString(36).substr(2, 9);
+    model.traverse(node => {
+      if (node.isMesh) node.userData = { isFileObject: true, fileId: fileId, location: 'jar' };
+    });
+
+    scene.add(model);
+    model.position.set(0, 4.4, 0);
+
+    const targetSlotIndex = appState.files.length;
+    const targetAngle = Math.random() * Math.PI * 2;
+    const targetRad = 0.04 + Math.random() * 0.12;
+    const targetY = 0.52 + Math.min(targetSlotIndex * 0.22, 1.4);
+
+    const record = {
+      id: fileId,
+      name: fileObj.name.toLowerCase(),
+      size: fileObj.size,
+      category: category,
+      raw: fileObj,
+      textContent: textData,
+      imageElement: previewImg,
+      modelGroup: model,
+      targetY: targetY,
+      swirlAngle: targetAngle,
+      swirlRadius: targetRad,
+      targetFlatX: model.userData.targetFlatX !== undefined ? model.userData.targetFlatX : -Math.PI / 2,
+      targetFlatZ: model.userData.targetFlatZ !== undefined ? model.userData.targetFlatZ : 0,
+    };
+
+    appState.files.push(record);
+
+    appState.flyingFiles.push({
+      record: record,
+      modelGroup: model,
+      phase: 'entering_jar',
+      velocity: new THREE.Vector3(0, -3.2, 0),
+      rotVel: new THREE.Vector3(0.5, 1.2, 0.5),
+      targetSlotY: targetY,
+      targetAngle: targetAngle,
+      targetRad: targetRad,
+      targetFlatX: record.targetFlatX,
+      targetFlatZ: record.targetFlatZ,
+      bounces: 0,
+    });
+
+    refreshJarCounts();
+    triggerToast(`added: ${fileObj.name}`, 'info');
+  }
+
+  function refreshJarCounts() {
+    const promptBanner = document.getElementById('outputPromptBanner');
+    const bannerName = document.getElementById('bannerResultName');
+    if (appState.blendedResult) {
+      bannerName.textContent = appState.blendedResult.name;
+      promptBanner.classList.remove('opacity-0', 'translate-y-4');
+    } else {
+      promptBanner.classList.add('opacity-0', 'translate-y-4');
+    }
+  }
+
+  // ejection out of jar to table
+  function startFileEjectionFromJar(fileRecord, delayMs = 0) {
+    setTimeout(() => {
+      triggerLidOpen(2800);
+      playTone(180, 0.15, 'sine', 0.2);
+
+      const model = fileRecord.modelGroup;
+      const fIdx = appState.flyingFiles.findIndex(f => f.record.id === fileRecord.id);
+      if (fIdx !== -1) appState.flyingFiles.splice(fIdx, 1);
+
+      appState.flyingFiles.push({
+        record: fileRecord,
+        modelGroup: model,
+        phase: 'exiting_jar',
+        velocity: new THREE.Vector3(0, 4.4, 0),
+        rotVel: new THREE.Vector3(2.5, 3.5, 2.0),
+        targetFlatX: fileRecord.targetFlatX !== undefined ? fileRecord.targetFlatX : -Math.PI / 2,
+        targetFlatZ: fileRecord.targetFlatZ !== undefined ? fileRecord.targetFlatZ : 0,
+        bounces: 0,
+      });
+
+      appState.tableFiles.push(fileRecord);
+    }, delayMs);
+  }
+
+  function clearJarWithAnimation() {
+    pressButtonMechanically(appState.buttons['clear'], false);
+
+    if (appState.files.length === 0 && appState.coins.length === 0 && !appState.blendedResult) {
+      triggerToast('blender is already empty', 'info');
+      return;
+    }
+
+    const itemsToClear = [...appState.files];
+    appState.files = [];
+
+    itemsToClear.forEach((item, idx) => startFileEjectionFromJar(item, idx * 140));
+
+    const coinsToClear = [...appState.coins];
+    appState.coins = [];
+    coinsToClear.forEach((coinRec, idx) => {
+      setTimeout(() => {
+        triggerLidOpen(2400);
+        playCoinClink(0.4);
+        const model = coinRec.modelGroup;
+        appState.flyingFiles.push({
+          record: coinRec,
+          modelGroup: model,
+          phase: 'exiting_jar',
+          velocity: new THREE.Vector3(0, 4.2, 0),
+          rotVel: new THREE.Vector3(4, 6, 2),
+          targetFlatX: 0,
+          targetFlatZ: 0,
+          bounces: 0,
+        });
+        appState.tableFiles.push(coinRec);
+      }, (itemsToClear.length + idx) * 100);
+    });
+
+    if (appState.blendedResult && appState.blendedResult.modelGroup) {
+      const resRecord = {
+        id: 'res_' + Math.random().toString(36).substr(2, 9),
+        name: appState.blendedResult.name,
+        size: appState.blendedResult.blob.size,
+        category: appState.blendedResult.type,
+        raw: new File([appState.blendedResult.blob], appState.blendedResult.name),
+        modelGroup: appState.blendedResult.modelGroup,
+        targetFlatX: appState.blendedResult.modelGroup.userData.targetFlatX !== undefined ? appState.blendedResult.modelGroup.userData.targetFlatX : 0,
+        targetFlatZ: appState.blendedResult.modelGroup.userData.targetFlatZ !== undefined ? appState.blendedResult.modelGroup.userData.targetFlatZ : 0,
+      };
+      appState.blendedResult = null;
+      startFileEjectionFromJar(resRecord, (itemsToClear.length + coinsToClear.length) * 140);
+    }
+
+    refreshJarCounts();
+    triggerToast('ejected to kitchen counter', 'info');
+  }
+
+  // slot machine spin & payouts
+  function pullSlotLever() {
+    if (appState.isSpinningSlots) return;
+    if (appState.credits < appState.activeBet) {
+      triggerToast('not enough credits! insert coins to play', 'error');
+      return;
+    }
+
+    initAudioContext();
+    appState.credits -= appState.activeBet;
+    document.getElementById('displayCredits').textContent = appState.credits;
+    appState.isSpinningSlots = true;
+
+    leverArmGroup.rotation.z = 0.75;
+    playTone(160, 0.08, 'square', 0.3);
+    setTimeout(() => {
+      leverArmGroup.rotation.z = 0;
+      playTone(280, 0.05, 'triangle', 0.2);
+    }, 280);
+
+    const isJackpotChance = Math.random() < 0.15;
+    let sym1, sym2, sym3;
+    if (isJackpotChance) {
+      sym1 = 0; sym2 = 0; sym3 = 0;
+    } else {
+      sym1 = Math.floor(Math.random() * 6);
+      sym2 = Math.random() < 0.35 ? sym1 : Math.floor(Math.random() * 6);
+      sym3 = Math.random() < 0.2 ? sym1 : Math.floor(Math.random() * 6);
+    }
+
+    const anglePerSymbol = (Math.PI * 2) / 6;
+    const baseRotations = 18;
+
+    appState.reels.forEach((reel, idx) => {
+      reel.speed = 18 + idx * 3;
+      reel.isStopping = false;
+      const targetSym = [sym1, sym2, sym3][idx];
+      const targetAngle = baseRotations * Math.PI * 2 + targetSym * anglePerSymbol;
+      reel.targetAngle = targetAngle;
+
+      setTimeout(() => {
+        reel.isStopping = true;
+      }, 1300 + idx * 600);
+    });
+
+    setTimeout(() => {
+      appState.isSpinningSlots = false;
+      evaluateSlotWin(sym1, sym2, sym3);
+    }, 1300 + 2 * 600 + 750);
+  }
+
+  function evaluateSlotWin(s1, s2, s3) {
+    let winMultiplier = 0;
+    let label = '';
+
+    if (s1 === s2 && s2 === s3) {
+      if (s1 === 0) { winMultiplier = 50; label = 'jackpot 777!'; }
+      else if (s1 === 1) { winMultiplier = 25; label = 'triple bar!'; }
+      else { winMultiplier = 15; label = `triple ${appState.slotSymbols[s1]}!`; }
+    } else if (s1 === s2 || s2 === s3 || s1 === s3) {
+      winMultiplier = 3;
+      label = 'double match!';
+    }
+
+    if (winMultiplier > 0) {
+      const wonCredits = appState.activeBet * winMultiplier;
+      appState.credits += wonCredits;
+      document.getElementById('displayCredits').textContent = appState.credits;
+      triggerWinBanner(`${label} +${wonCredits} credits`);
+      playCashRegisterSound();
+      eruptCoinsFromBlender(Math.min(10, Math.max(3, Math.floor(wonCredits / 5))));
+    } else {
+      triggerToast('no match, try again', 'info');
+    }
+  }
+
+  function eruptCoinsFromBlender(count) {
+    triggerLidOpen(2800);
+    for (let c = 0; c < count; c++) {
+      setTimeout(() => {
+        playCoinClink(0.35);
+        const coinMesh = buildCoinMesh();
+        const coinId = 'coin_' + Math.random().toString(36).substr(2, 9);
+        coinMesh.traverse(n => {
+          if (n.isMesh) n.userData = { isCoin: true, fileId: coinId, location: 'table' };
+        });
+
+        scene.add(coinMesh);
+        coinMesh.position.set(0, 2.45, 0);
+
+        const targetX = (Math.random() - 0.5) * 2.2;
+        const targetZ = 1.45 + Math.random() * 0.8;
+        const dur = 0.75 + Math.random() * 0.3;
+
+        const record = {
+          id: coinId,
+          name: 'gold chef coin',
+          isCoin: true,
+          size: 10,
+          modelGroup: coinMesh,
+          targetFlatX: 0,
+          targetFlatZ: 0,
+        };
+
+        appState.tableFiles.push(record);
+
+        appState.flyingFiles.push({
+          record: record,
+          modelGroup: coinMesh,
+          phase: 'flying_to_table',
+          velocity: new THREE.Vector3((targetX) / dur, 3.8 + Math.random() * 1.5, (targetZ) / dur),
+          rotVel: new THREE.Vector3((Math.random() - 0.5) * 12, (Math.random() - 0.5) * 10, (Math.random() - 0.5) * 12),
+          targetFlatX: 0,
+          targetFlatZ: 0,
+          bounces: 0,
+          isResting: false,
+        });
+      }, c * 100);
+    }
+  }
+
+  // 3d raycast & dragging
+  const raycaster = new THREE.Raycaster();
+  const mouseCoord = new THREE.Vector2();
+  const hoverTooltip = document.getElementById('hoverTooltip');
+  const tooltipContent = document.getElementById('tooltipContent');
+
+  let downPointerPos = { x: 0, y: 0 };
+  let isPointerDown = false;
+
+  function getRaycastHits(clientX, clientY) {
+    const rect = renderer.domElement.getBoundingClientRect();
+    mouseCoord.x = ((clientX - rect.left) / rect.width) * 2 - 1;
+    mouseCoord.y = -((clientY - rect.top) / rect.height) * 2 + 1;
+    raycaster.setFromCamera(mouseCoord, camera);
+
+    const tableModels = appState.tableFiles.map(t => t.modelGroup);
+    const testPool = [...clickableObjects, ...jarContentsGroup.children, ...tableModels, hopperBase, hopperFunnel];
+    return raycaster.intersectObjects(testPool, true);
+  }
+
+  canvas.addEventListener('pointerdown', (e) => {
+    isPointerDown = true;
+    downPointerPos = { x: e.clientX, y: e.clientY };
+    initAudioContext();
+    appState.dragHistory = [];
+
+    const hits = getRaycastHits(e.clientX, e.clientY);
+    if (hits.length > 0) {
+      const hitObj = hits[0].object;
+
+      if (hitObj.userData && (hitObj.userData.isFileObject || hitObj.userData.isCoin) && hitObj.userData.location === 'table') {
+        const item = appState.tableFiles.find(f => f.id === hitObj.userData.fileId);
+        if (item) {
+          appState.dragRecord = item;
+          appState.dragObject = item.modelGroup;
+
+          const cameraDir = new THREE.Vector3();
+          camera.getWorldDirection(cameraDir).negate();
+          appState.dragPlane.setFromNormalAndCoplanarPoint(cameraDir, appState.dragObject.position);
+
+          raycaster.setFromCamera(mouseCoord, camera);
+          if (raycaster.ray.intersectPlane(appState.dragPlane, appState.dragIntersection)) {
+            appState.dragOffset.copy(appState.dragObject.position).sub(appState.dragIntersection);
+          }
+
+          appState.dragHistory.push({ pos: appState.dragObject.position.clone(), time: performance.now() });
+        }
+      }
+    }
+  });
+
+  canvas.addEventListener('pointermove', (e) => {
+    const rect = renderer.domElement.getBoundingClientRect();
+    mouseCoord.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+    mouseCoord.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+
+    if (isPointerDown && appState.dragObject) {
+      const dist = Math.hypot(e.clientX - downPointerPos.x, e.clientY - downPointerPos.y);
+      if (dist > 5) {
+        if (!appState.isDragging) {
+          appState.isDragging = true;
+          controls.enabled = false;
+        }
+
+        raycaster.setFromCamera(mouseCoord, camera);
+        if (raycaster.ray.intersectPlane(appState.dragPlane, appState.dragIntersection)) {
+          const targetPos = appState.dragIntersection.clone().add(appState.dragOffset);
+          targetPos.y = Math.max(0.40, targetPos.y);
+          appState.dragObject.position.lerp(targetPos, 0.45);
+
+          const distToBlender = Math.hypot(appState.dragObject.position.x, appState.dragObject.position.z);
+          if (distToBlender < 1.15 && appState.dragObject.position.y > 1.75) {
+            triggerLidOpen(0);
+          } else {
+            if (appState.lidState === 'open') triggerLidClose();
+          }
+
+          if (appState.dragRecord.isCoin) {
+            const distToIntake = Math.hypot(appState.dragObject.position.x - 2.35, appState.dragObject.position.z - 0.35);
+            if (distToIntake < 1.6) {
+              consumeCoinInChute(appState.dragRecord);
+              appState.dragObject = null;
+              appState.dragRecord = null;
+              controls.enabled = true;
+              appState.isDragging = false;
+              return;
+            }
+          }
+
+          appState.dragHistory.push({ pos: appState.dragObject.position.clone(), time: performance.now() });
+          if (appState.dragHistory.length > 8) appState.dragHistory.shift();
+        }
+        return;
+      }
+    }
+
+    if (!isPointerDown) {
+      handleRaycastHover(e.clientX, e.clientY);
+    }
+  });
+
+  function consumeCoinInChute(coinRecord) {
+    const idx = appState.tableFiles.indexOf(coinRecord);
+    if (idx !== -1) appState.tableFiles.splice(idx, 1);
+    const fIdx = appState.flyingFiles.findIndex(f => f.record.id === coinRecord.id);
+    if (fIdx !== -1) appState.flyingFiles.splice(fIdx, 1);
+
+    const model = coinRecord.modelGroup;
+    playCashRegisterSound();
+    appState.credits += 10;
+    document.getElementById('displayCredits').textContent = appState.credits;
+    triggerToast('coin accepted: +10 credits', 'success');
+
+    let t = 0;
+    const chuteAnim = setInterval(() => {
+      t += 0.08;
+      model.position.lerp(new THREE.Vector3(2.35, 0.18, 0.35), 0.35);
+      model.scale.multiplyScalar(0.7);
+      if (t >= 1.0) {
+        clearInterval(chuteAnim);
+        scene.remove(model);
+      }
+    }, 16);
+  }
+
+  canvas.addEventListener('pointerup', (e) => {
+    isPointerDown = false;
+    const dist = Math.hypot(e.clientX - downPointerPos.x, e.clientY - downPointerPos.y);
+
+    if (appState.isDragging && appState.dragRecord) {
+      controls.enabled = true;
+      appState.isDragging = false;
+
+      let flickVel = new THREE.Vector3(0, 0, 0);
+      if (appState.dragHistory.length >= 2) {
+        const first = appState.dragHistory[0];
+        const last = appState.dragHistory[appState.dragHistory.length - 1];
+        const dt = (last.time - first.time) / 1000;
+        if (dt > 0.015 && dt < 0.35) {
+          flickVel.subVectors(last.pos, first.pos).divideScalar(dt);
+          flickVel.clampLength(0, 14.0);
+          if (flickVel.length() > 0.8) flickVel.y = Math.max(flickVel.y, 0.4) + flickVel.length() * 0.12;
+        }
+      }
+
+      const objPos = appState.dragObject.position;
+      const distToBlender = Math.hypot(objPos.x, objPos.z);
+      const isAboveOpening = distToBlender < 1.05 && objPos.y > 1.85;
+
+      if (isAboveOpening) {
+        startFunnelIntoBlender(appState.dragRecord);
+      } else {
+        releaseWithMomentum(appState.dragRecord, flickVel);
+      }
+
+      appState.dragObject = null;
+      appState.dragRecord = null;
+      appState.dragHistory = [];
+      return;
+    }
+
+    appState.dragObject = null;
+    appState.dragRecord = null;
+    controls.enabled = true;
+
+    if (dist < 8) {
+      handleRaycastInteraction(e.clientX, e.clientY);
+    }
+  });
+
+  function startFunnelIntoBlender(record) {
+    const tIdx = appState.tableFiles.indexOf(record);
+    if (tIdx !== -1) appState.tableFiles.splice(tIdx, 1);
+    const fIdx = appState.flyingFiles.findIndex(f => f.record.id === record.id);
+    if (fIdx !== -1) appState.flyingFiles.splice(fIdx, 1);
+
+    triggerLidOpen(2000);
+
+    if (record.isCoin) {
+      appState.coins.push(record);
+      record.modelGroup.traverse(n => { if (n.isMesh) n.userData.location = 'jar'; });
+      playCoinClink(0.4);
+    } else {
+      appState.files.push(record);
+      record.modelGroup.traverse(n => { if (n.isMesh) n.userData.location = 'jar'; });
+    }
+
+    const targetSlotIndex = appState.files.length + appState.coins.length;
+    const targetY = 0.52 + Math.min(targetSlotIndex * 0.18, 1.4);
+
+    appState.flyingFiles.push({
+      record: record,
+      modelGroup: record.modelGroup,
+      phase: 'entering_jar',
+      velocity: new THREE.Vector3(0, -3.2, 0),
+      rotVel: new THREE.Vector3(0.6, 1.4, 0.6),
+      targetSlotY: targetY,
+      targetAngle: Math.random() * Math.PI * 2,
+      targetRad: 0.04 + Math.random() * 0.12,
+      targetFlatX: record.targetFlatX !== undefined ? record.targetFlatX : -Math.PI / 2,
+      targetFlatZ: record.targetFlatZ !== undefined ? record.targetFlatZ : 0,
+      bounces: 0,
+    });
+
+    refreshJarCounts();
+    triggerToast(`loaded into jar: ${record.name}`, 'success');
+  }
+
+  function releaseWithMomentum(record, flickVel) {
+    const fIdx = appState.flyingFiles.findIndex(f => f.record.id === record.id);
+    if (fIdx !== -1) appState.flyingFiles.splice(fIdx, 1);
+
+    appState.flyingFiles.push({
+      record: record,
+      modelGroup: record.modelGroup,
+      phase: 'flying_to_table',
+      velocity: flickVel.clone(),
+      rotVel: new THREE.Vector3(flickVel.z * 1.5 + (Math.random() - 0.5) * 2, (Math.random() - 0.5) * 6, -flickVel.x * 1.5 + (Math.random() - 0.5) * 2),
+      targetFlatX: record.targetFlatX !== undefined ? record.targetFlatX : -Math.PI / 2,
+      targetFlatZ: record.targetFlatZ !== undefined ? record.targetFlatZ : 0,
+      bounces: 0,
+      isResting: false,
+    });
+
+    if (appState.lidState === 'open') triggerLidClose();
+  }
+
+  function handleRaycastHover(clientX, clientY) {
+    const hits = getRaycastHits(clientX, clientY);
+    if (hits.length > 0) {
+      for (const hit of hits) {
+        const hitObj = hit.object;
+        if (hitObj.userData && hitObj.userData.isLever) {
+          canvas.style.cursor = 'pointer';
+          hoverTooltip.style.left = clientX + 'px';
+          hoverTooltip.style.top = clientY + 'px';
+          tooltipContent.textContent = `pull lever (bet: ${appState.activeBet} credits)`;
+          hoverTooltip.classList.remove('opacity-0');
+          return;
+        }
+        if (hitObj.userData && hitObj.userData.isButton) {
+          canvas.style.cursor = 'pointer';
+          hoverTooltip.style.left = clientX + 'px';
+          hoverTooltip.style.top = clientY + 'px';
+          tooltipContent.textContent = `button: ${hitObj.userData.label}`;
+          hoverTooltip.classList.remove('opacity-0');
+          return;
+        }
+        if (appState.blendedResult && hitObj.userData && hitObj.userData.isBlendedResult) {
+          canvas.style.cursor = 'pointer';
+          hoverTooltip.style.left = clientX + 'px';
+          hoverTooltip.style.top = clientY + 'px';
+          tooltipContent.textContent = `${appState.blendedResult.name} - click to download`;
+          hoverTooltip.classList.remove('opacity-0');
+          return;
+        }
+        if (hitObj.userData && hitObj.userData.isCoin) {
+          canvas.style.cursor = 'grab';
+          hoverTooltip.style.left = clientX + 'px';
+          hoverTooltip.style.top = clientY + 'px';
+          tooltipContent.textContent = 'chef gold coin (+10 credits or melt into gold bar)';
+          hoverTooltip.classList.remove('opacity-0');
+          return;
+        }
+        if (hitObj.userData && hitObj.userData.isFileObject) {
+          canvas.style.cursor = 'grab';
+          const fileList = hitObj.userData.location === 'table' ? appState.tableFiles : appState.files;
+          const item = fileList.find(f => f.id === hitObj.userData.fileId);
+          if (item) {
+            hoverTooltip.style.left = clientX + 'px';
+            hoverTooltip.style.top = clientY + 'px';
+            tooltipContent.textContent = `${item.name} (${formatBytes(item.size)}) &bull; click to edit`;
+            hoverTooltip.classList.remove('opacity-0');
+            return;
+          }
+        }
+      }
+    }
+    canvas.style.cursor = 'default';
+    hoverTooltip.classList.add('opacity-0');
+  }
+
+  function handleRaycastInteraction(clientX, clientY) {
+    const hits = getRaycastHits(clientX, clientY);
+    if (hits.length > 0) {
+      for (const hit of hits) {
+        const hitObj = hit.object;
+        if (hitObj.userData && hitObj.userData.isLever) {
+          pullSlotLever();
+          return;
+        }
+        if (hitObj.userData && hitObj.userData.isButton) {
+          executeAction(hitObj.userData.action);
+          return;
+        }
+        if (appState.blendedResult && hitObj.userData && hitObj.userData.isBlendedResult) {
+          downloadFileBlob(appState.blendedResult.blob, appState.blendedResult.name);
+          triggerToast(`downloading ${appState.blendedResult.name}`, 'success');
+          return;
+        }
+        if (hitObj.userData && hitObj.userData.isFileObject) {
+          const loc = hitObj.userData.location || 'jar';
+          const fileList = loc === 'table' ? appState.tableFiles : appState.files;
+          const item = fileList.find(f => f.id === hitObj.userData.fileId);
+          if (item) {
+            openFileEditor(item.id, loc);
+            return;
+          }
+        }
+      }
+    }
+  }
+
+  function executeAction(actionKey) {
+    if (appState.isBlending) return;
+    if (actionKey === 'zip') {
+      pressButtonMechanically(appState.buttons['zip'], true);
+      runZipArchive();
+    } else if (actionKey === 'blend') {
+      pressButtonMechanically(appState.buttons['blend'], true);
+      runBlendMerge();
+    } else if (actionKey === 'clear') {
+      clearJarWithAnimation();
+    }
+  }
+
+  document.getElementById('bannerDownloadBtn').addEventListener('click', () => {
+    if (appState.blendedResult) {
+      downloadFileBlob(appState.blendedResult.blob, appState.blendedResult.name);
+      triggerToast(`downloading ${appState.blendedResult.name}`, 'success');
+    }
+  });
+
+  // text modal logic
+  const textModal = document.getElementById('textModal');
+  const textModalTitle = document.getElementById('textModalTitle');
+  const textModalSubtitle = document.getElementById('textModalSubtitle');
+  const textFilenameInput = document.getElementById('textFilenameInput');
+  const textEditorArea = document.getElementById('textEditorArea');
+  const textLineGutter = document.getElementById('textLineGutter');
+  const textStatsDisplay = document.getElementById('textStatsDisplay');
+
+  function openFileEditor(fileId, location = 'jar') {
+    const fileList = location === 'table' ? appState.tableFiles : appState.files;
+    const idx = fileList.findIndex(f => f.id === fileId);
+    if (idx === -1) return;
+    appState.activeEditIndex = idx;
+    appState.activeEditLocation = location;
+    const item = fileList[idx];
+
+    if (item.category === 'text') openTextEditor(item);
+    else if (item.category === 'image') openImageEditor(item);
+    else triggerToast(`file: ${item.name} (${formatBytes(item.size)})`, 'info');
+  }
+
+  function openTextEditor(item) {
+    textModalTitle.textContent = `edit note: ${item.name}`;
+    textModalSubtitle.textContent = formatBytes(item.size);
+    textFilenameInput.value = item.name;
+    textEditorArea.value = item.textContent || '';
+    recalculateTextStats();
+    textModal.classList.remove('hidden');
+  }
+
+  function recalculateTextStats() {
+    const val = textEditorArea.value;
+    const lines = (val.match(/\n/g) || []).length + 1;
+    textStatsDisplay.textContent = `lines: ${lines} | chars: ${val.length}`;
+    let gut = '';
+    for (let i = 1; i <= lines; i++) gut += `<div>${i}</div>`;
+    textLineGutter.innerHTML = gut;
+  }
+
+  textEditorArea.addEventListener('input', recalculateTextStats);
+  textEditorArea.addEventListener('scroll', () => { textLineGutter.scrollTop = textEditorArea.scrollTop; });
+  document.getElementById('btnPrettifyJson').addEventListener('click', () => {
+    try {
+      textEditorArea.value = JSON.stringify(JSON.parse(textEditorArea.value), null, 2);
+      recalculateTextStats();
+      triggerToast('json formatted', 'success');
+    } catch (e) { triggerToast('invalid json', 'error'); }
+  });
+  document.getElementById('btnCaseUpper').addEventListener('click', () => { textEditorArea.value = textEditorArea.value.toUpperCase(); recalculateTextStats(); });
+  document.getElementById('btnCaseLower').addEventListener('click', () => { textEditorArea.value = textEditorArea.value.toLowerCase(); recalculateTextStats(); });
+  document.getElementById('btnSaveText').addEventListener('click', () => {
+    const fileList = appState.activeEditLocation === 'table' ? appState.tableFiles : appState.files;
+    const item = fileList[appState.activeEditIndex];
+    if (!item) return;
+    item.textContent = textEditorArea.value;
+    item.name = textFilenameInput.value.trim().toLowerCase() || item.name;
+    item.size = new Blob([item.textContent]).size;
+    item.raw = new File([item.textContent], item.name, { type: 'text/plain' });
+    textModal.classList.add('hidden');
+    appState.activeEditIndex = -1;
+    triggerToast('saved note', 'success');
+  });
+  document.getElementById('btnDeleteCurrentFile').addEventListener('click', () => {
+    const fileList = appState.activeEditLocation === 'table' ? appState.tableFiles : appState.files;
+    const item = fileList[appState.activeEditIndex];
+    if (item) {
+      if (appState.activeEditLocation === 'jar') {
+        fileList.splice(appState.activeEditIndex, 1);
+        startFileEjectionFromJar(item, 0);
+        refreshJarCounts();
+        triggerToast('ejected to table', 'info');
+      } else {
+        scene.remove(item.modelGroup);
+        fileList.splice(appState.activeEditIndex, 1);
+        triggerToast('removed from counter', 'info');
+      }
+    }
+    textModal.classList.add('hidden');
+    appState.activeEditIndex = -1;
+  });
+  document.getElementById('btnCloseTextModal').addEventListener('click', () => textModal.classList.add('hidden'));
+  document.getElementById('btnDiscardText').addEventListener('click', () => textModal.classList.add('hidden'));
+
+  // image editor modal
+  const imageModal = document.getElementById('imageModal');
+  const imageCanvasPreview = document.getElementById('imageCanvasPreview');
+  const sliderBrightness = document.getElementById('sliderBrightness');
+  const sliderContrast = document.getElementById('sliderContrast');
+  const valBrightness = document.getElementById('valBrightness');
+  const valContrast = document.getElementById('valContrast');
+  const selectImgFilter = document.getElementById('selectImgFilter');
+  let imgTransform = { rot: 0, flip: false, filter: 'none', bright: 0, cont: 0 };
+  let currentSourceImg = null;
+
+  function openImageEditor(item) {
+    currentSourceImg = item.imageElement;
+    imgTransform = { rot: 0, flip: false, filter: 'none', bright: 0, cont: 0 };
+    sliderBrightness.value = 0; sliderContrast.value = 0;
+    valBrightness.textContent = '0'; valContrast.textContent = '0';
+    selectImgFilter.value = 'none';
+    renderImageCanvas();
+    imageModal.classList.remove('hidden');
+  }
+
+  function renderImageCanvas() {
+    if (!currentSourceImg) return;
+    const ctx = imageCanvasPreview.getContext('2d');
+    const sideways = Math.abs(imgTransform.rot % 180) === 90;
+    const w = sideways ? currentSourceImg.naturalHeight : currentSourceImg.naturalWidth;
+    const h = sideways ? currentSourceImg.naturalWidth : currentSourceImg.naturalHeight;
+    imageCanvasPreview.width = w; imageCanvasPreview.height = h;
+
+    ctx.save();
+    ctx.clearRect(0, 0, w, h);
+    let filterExpr = `brightness(${100 + Number(imgTransform.bright)}%) contrast(${100 + Number(imgTransform.cont)}%) `;
+    if (imgTransform.filter === 'monochrome') filterExpr += 'grayscale(100%) ';
+    if (imgTransform.filter === 'sepia') filterExpr += 'sepia(80%) ';
+    if (imgTransform.filter === 'invert') filterExpr += 'invert(100%) ';
+    ctx.filter = filterExpr.trim();
+    ctx.translate(w / 2, h / 2);
+    ctx.rotate((imgTransform.rot * Math.PI) / 180);
+    if (imgTransform.flip) ctx.scale(-1, 1);
+    ctx.drawImage(currentSourceImg, -currentSourceImg.naturalWidth / 2, -currentSourceImg.naturalHeight / 2);
+    ctx.restore();
+  }
+
+  document.getElementById('btnImgRotateCCW').addEventListener('click', () => { imgTransform.rot = (imgTransform.rot - 90) % 360; renderImageCanvas(); });
+  document.getElementById('btnImgRotateCW').addEventListener('click', () => { imgTransform.rot = (imgTransform.rot + 90) % 360; renderImageCanvas(); });
+  document.getElementById('btnImgFlipH').addEventListener('click', () => { imgTransform.flip = !imgTransform.flip; renderImageCanvas(); });
+  selectImgFilter.addEventListener('change', (e) => { imgTransform.filter = e.target.value; renderImageCanvas(); });
+  sliderBrightness.addEventListener('input', (e) => { imgTransform.bright = e.target.value; valBrightness.textContent = e.target.value; renderImageCanvas(); });
+  sliderContrast.addEventListener('input', (e) => { imgTransform.cont = e.target.value; valContrast.textContent = e.target.value; renderImageCanvas(); });
+  document.getElementById('btnResetImgFilters').addEventListener('click', () => {
+    imgTransform = { rot: 0, flip: false, filter: 'none', bright: 0, cont: 0 };
+    sliderBrightness.value = 0; sliderContrast.value = 0;
+    valBrightness.textContent = '0'; valContrast.textContent = '0';
+    selectImgFilter.value = 'none';
+    renderImageCanvas();
+  });
+  document.getElementById('btnSaveImage').addEventListener('click', () => {
+    const fileList = appState.activeEditLocation === 'table' ? appState.tableFiles : appState.files;
+    const item = fileList[appState.activeEditIndex];
+    if (!item) return;
+    imageCanvasPreview.toBlob(blob => {
+      if (!blob) return;
+      item.raw = new File([blob], item.name, { type: 'image/png' });
+      item.size = blob.size;
+      const pCv = item.modelGroup.userData.photoCanvas;
+      const pTx = item.modelGroup.userData.photoTexture;
+      if (pCv && pTx) {
+        const pCtx = pCv.getContext('2d');
+        pCtx.drawImage(imageCanvasPreview, 0, 0, pCv.width, pCv.height);
+        pTx.needsUpdate = true;
+      }
+      imageModal.classList.add('hidden');
+      appState.activeEditIndex = -1;
+      triggerToast('photo updated', 'success');
+    }, 'image/png');
+  });
+  document.getElementById('btnCloseImageModal').addEventListener('click', () => imageModal.classList.add('hidden'));
+  document.getElementById('btnDiscardImage').addEventListener('click', () => imageModal.classList.add('hidden'));
+
+  function downloadFileBlob(blob, filename) {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 2500);
+  }
+
+  // zip and blend functions
+  async function runZipArchive() {
+    if (appState.files.length === 0 && appState.coins.length === 0) {
+      releaseButtonMechanically(appState.buttons['zip']);
+      triggerToast('add files into blender first', 'error');
+      return;
+    }
+    triggerLidClose();
+    startBlendingSequence(0xd49438);
+
+    try {
+      const zip = new JSZip();
+      for (const item of appState.files) {
+        if (item.category === 'text' && item.textContent !== null) zip.file(item.name, item.textContent);
+        else zip.file(item.name, item.raw);
+      }
+      if (appState.coins.length > 0) {
+        zip.file('chef_gold_tokens.txt', `casino gold tokens enclosed: ${appState.coins.length * 10} credits total.`);
+      }
+      const zipBlob = await zip.generateAsync({ type: 'blob' });
+
+      setTimeout(() => {
+        releaseButtonMechanically(appState.buttons['zip']);
+        completeBlendingWithSingleResult({
+          name: 'blender_archive.zip',
+          blob: zipBlob,
+          type: 'archive',
+          model: buildBookStackMesh(),
+        });
+      }, 2400);
+    } catch (e) {
+      stopBlendingSequence();
+      releaseButtonMechanically(appState.buttons['zip']);
+      triggerToast('archive error: ' + e.message, 'error');
+    }
+  }
+
+  async function runBlendMerge() {
+    if (appState.files.length === 0 && appState.coins.length > 0) {
+      triggerLidClose();
+      startBlendingSequence(0xf59e0b);
+      setTimeout(() => {
+        releaseButtonMechanically(appState.buttons['blend']);
+        const goldCert = `pure 999.9 gold bullion certificate\nmelted coins: ${appState.coins.length}\nvalue: ${appState.coins.length * 10} kitchen credits\ndate: 1974 vintage edition`;
+        const blob = new Blob([goldCert], { type: 'text/plain' });
+        completeBlendingWithSingleResult({
+          name: 'pure_gold_bar.txt',
+          blob: blob,
+          type: 'gold',
+          model: buildGoldBullionMesh(),
+        });
+      }, 2400);
+      return;
+    }
+
+    if (appState.files.length < 2 && appState.coins.length === 0) {
+      releaseButtonMechanically(appState.buttons['blend']);
+      triggerToast('need at least 2 files or coins to blend together', 'error');
+      return;
+    }
+
+    const categories = appState.files.map(f => f.category);
+    const allText = categories.every(c => c === 'text');
+    const allImages = categories.every(c => c === 'image');
+    const allPdfs = categories.every(c => c === 'pdf');
+
+    if (!allText && !allImages && !allPdfs) {
+      triggerToast('mixed types: packing into zip archive', 'info');
+      releaseButtonMechanically(appState.buttons['blend']);
+      pressButtonMechanically(appState.buttons['zip'], true);
+      runZipArchive();
+      return;
+    }
+
+    triggerLidClose();
+    const blendColor = allText ? 0x5e7847 : allImages ? 0xc04a2a : 0xba472a;
+    startBlendingSequence(blendColor);
+
+    try {
+      if (allText) {
+        const parts = [];
+        for (const item of appState.files) {
+          const content = item.textContent !== null ? item.textContent : await item.raw.text();
+          parts.push(`/* file: ${item.name} */\n` + content);
+        }
+        const mergedBlob = new Blob([parts.join('\n\n')], { type: 'text/plain;charset=utf-8' });
+        setTimeout(() => {
+          releaseButtonMechanically(appState.buttons['blend']);
+          completeBlendingWithSingleResult({
+            name: 'blended_notes.txt',
+            blob: mergedBlob,
+            type: 'text',
+            model: buildNotebookMesh('blended_notes.txt'),
+          });
+        }, 2400);
+      } else if (allImages) {
+        const images = appState.files.map(f => f.imageElement).filter(Boolean);
+        const maxW = Math.max(...images.map(i => i.naturalWidth));
+        const totalH = images.reduce((sum, i) => sum + Math.round(i.naturalHeight * (maxW / i.naturalWidth)), 0);
+        const canvasOut = document.createElement('canvas');
+        canvasOut.width = maxW; canvasOut.height = totalH;
+        const ctxOut = canvasOut.getContext('2d');
+        ctxOut.fillStyle = '#ffffff'; ctxOut.fillRect(0, 0, maxW, totalH);
+        let curY = 0;
+        images.forEach(img => {
+          const h = Math.round(img.naturalHeight * (maxW / img.naturalWidth));
+          ctxOut.drawImage(img, 0, curY, maxW, h);
+          curY += h;
+        });
+        canvasOut.toBlob(blob => {
+          setTimeout(() => {
+            releaseButtonMechanically(appState.buttons['blend']);
+            completeBlendingWithSingleResult({
+              name: 'blended_collage.png',
+              blob: blob,
+              type: 'image',
+              model: buildPolaroidMesh('blended_collage.png', canvasOut),
+            });
+          }, 2400);
+        }, 'image/png');
+      } else if (allPdfs) {
+        const { PDFDocument } = window.PDFLib;
+        const mergedDoc = await PDFDocument.create();
+        for (const item of appState.files) {
+          const buf = await item.raw.arrayBuffer();
+          const doc = await PDFDocument.load(buf);
+          const pages = await mergedDoc.copyPages(doc, doc.getPageIndices());
+          pages.forEach(p => mergedDoc.addPage(p));
+        }
+        const pdfBytes = await mergedDoc.save();
+        const pdfBlob = new Blob([pdfBytes], { type: 'application/pdf' });
+        setTimeout(() => {
+          releaseButtonMechanically(appState.buttons['blend']);
+          completeBlendingWithSingleResult({
+            name: 'blended_document.pdf',
+            blob: pdfBlob,
+            type: 'pdf',
+            model: buildPdfBinderMesh(),
+          });
+        }, 2400);
+      }
+    } catch (e) {
+      stopBlendingSequence();
+      releaseButtonMechanically(appState.buttons['blend']);
+      triggerToast('blend error: ' + e.message, 'error');
+    }
+  }
+
+  function startBlendingSequence(colorHex) {
+    appState.isBlending = true;
+    startBlenderMotorSound();
+    liquidMat.color.setHex(colorHex);
+    liquidMat.opacity = 0.88;
+    splashParticles.forEach(p => {
+      p.mesh.visible = true;
+      p.mesh.material.color.setHex(colorHex);
+    });
+  }
+
+  function stopBlendingSequence() {
+    appState.isBlending = false;
+    stopBlenderMotorSound();
+    liquidMesh.scale.set(0.001, 0.001, 0.001);
+    liquidMat.opacity = 0;
+    splashParticles.forEach(p => { p.mesh.visible = false; });
+  }
+
+  function completeBlendingWithSingleResult(resData) {
+    stopBlendingSequence();
+    while (jarContentsGroup.children.length > 0) jarContentsGroup.remove(jarContentsGroup.children[0]);
+    appState.files = [];
+    appState.coins = [];
+
+    const model = resData.model;
+    model.position.set(0, 0.50, 0);
+    model.scale.set(0.02, 0.02, 0.02);
+    model.traverse(n => { if (n.isMesh) n.userData = { isBlendedResult: true, location: 'jar' }; });
+    jarContentsGroup.add(model);
+
+    let emergeT = 0;
+    const emergeTimer = setInterval(() => {
+      emergeT += 0.016;
+      const progress = Math.min(1.0, emergeT / 0.7);
+      const ease = 1 - Math.pow(1 - progress, 3);
+      const sc = 0.02 + ease * 0.53; // scale up to 0.55 inside jar
+      model.scale.set(sc, sc, sc);
+      model.position.y = 0.50 + ease * 0.12;
+      model.rotation.y = ease * Math.PI * 2;
+      if (progress >= 1.0) clearInterval(emergeTimer);
+    }, 16);
+
+    appState.blendedResult = {
+      name: resData.name,
+      blob: resData.blob,
+      type: resData.type,
+      modelGroup: model,
+    };
+    refreshJarCounts();
+    triggerToast(`blended into 1 item: ${resData.name}`, 'success');
+  }
+
+  // os drag & drop
+  const dragOverlay = document.getElementById('dragDropOverlay');
+  window.addEventListener('dragover', (e) => { e.preventDefault(); dragOverlay.classList.remove('opacity-0'); });
+  window.addEventListener('dragleave', (e) => {
+    if (e.clientX <= 0 || e.clientY <= 0 || e.clientX >= window.innerWidth || e.clientY >= window.innerHeight) {
+      dragOverlay.classList.add('opacity-0');
+    }
+  });
+  window.addEventListener('drop', (e) => {
+    e.preventDefault();
+    dragOverlay.classList.add('opacity-0');
+    if (e.dataTransfer && e.dataTransfer.files) {
+      Array.from(e.dataTransfer.files).forEach(f => addFileToBlender(f));
+    }
+  });
+
+  const fileInput = document.getElementById('systemFileInput');
+  document.getElementById('btnPickFiles').addEventListener('click', () => fileInput.click());
+  fileInput.addEventListener('change', (e) => {
+    Array.from(e.target.files).forEach(f => addFileToBlender(f));
+    fileInput.value = '';
+  });
+
+  document.getElementById('btnCreateNote').addEventListener('click', () => {
+    const totalNotes = appState.files.concat(appState.tableFiles).filter(f => f.name.startsWith('note')).length + 1;
+    const name = `note_${totalNotes}.txt`;
+    const defaultBody = `# note ${totalNotes}\n- kitchen notes\n- recipe items\n`;
+    const newFile = new File([defaultBody], name, { type: 'text/plain' });
+    addFileToBlender(newFile, defaultBody).then(() => {
+      setTimeout(() => openFileEditor(appState.files[appState.files.length - 1].id, 'jar'), 350);
+    });
+  });
+
+  // helper function to resolve obstacle collisions
+  function resolveRadialObstacle(model, fly, obsX, obsZ, obsRadius, itemRadius) {
+    const dx = model.position.x - obsX;
+    const dz = model.position.z - obsZ;
+    const dist = Math.hypot(dx, dz);
+    const minDist = obsRadius + itemRadius;
+    if (dist < minDist && dist > 0.001) {
+      const ang = Math.atan2(dz, dx);
+      const pushDist = minDist - dist;
+      model.position.x += Math.cos(ang) * pushDist;
+      model.position.z += Math.sin(ang) * pushDist;
+      if (fly) {
+        fly.velocity.x = Math.cos(ang) * Math.max(1.2, Math.abs(fly.velocity.x));
+        fly.velocity.z = Math.sin(ang) * Math.max(1.2, Math.abs(fly.velocity.z));
+      }
+    }
+  }
+
+  // reusable box for exact zero-clipping bounds calculation
+  const tempBox = new THREE.Box3();
+  const tempSize = new THREE.Vector3();
+
+  // animation loop
+  const clock = new THREE.Clock();
+
+  function animate() {
+    requestAnimationFrame(animate);
+    const delta = clock.getDelta();
+    const elapsed = clock.getElapsedTime();
+
+    controls.update();
+
+    // 1. clock hands
+    const now = new Date();
+    const ms = now.getMilliseconds();
+    const secs = now.getSeconds() + ms / 1000;
+    const mins = now.getMinutes() + secs / 60;
+    const hrs = (now.getHours() % 12) + mins / 60;
+    secondHandPivot.rotation.z = -secs * (Math.PI / 30);
+    minuteHandPivot.rotation.z = -mins * (Math.PI / 30);
+    hourHandPivot.rotation.z = -hrs * (Math.PI / 6);
+
+    // 2. coffee steam
+    steamParticles.forEach(st => {
+      st.mesh.position.y += st.baseSpeed;
+      if (st.mesh.position.y > 1.25) st.mesh.position.y = 0.58;
+    });
+
+    // 3. slot reels spinning
+    if (appState.isSpinningSlots) {
+      appState.reels.forEach((reel) => {
+        if (!reel.isStopping) {
+          reel.mesh.rotation.x += delta * reel.speed;
+          if (Math.random() < 0.2) playReelRatchet();
+        } else {
+          const diff = reel.targetAngle - reel.mesh.rotation.x;
+          if (diff > 0.05) {
+            reel.mesh.rotation.x += Math.min(diff, Math.max(1.8, diff * 7) * delta);
+            if (Math.random() < 0.25) playReelRatchet();
+          } else {
+            reel.mesh.rotation.x = reel.targetAngle;
+          }
+        }
+      });
+    }
+
+    // 4. lid movement
+    if (appState.lidState === 'opening') {
+      appState.lidOpenAmount = Math.min(1.0, appState.lidOpenAmount + delta * 4.2);
+      if (appState.lidOpenAmount >= 1.0) appState.lidState = 'open';
+    } else if (appState.lidState === 'closing') {
+      appState.lidOpenAmount = Math.max(0.0, appState.lidOpenAmount - delta * 3.5);
+      if (appState.lidOpenAmount <= 0.0) appState.lidState = 'closed';
+    }
+    lidPivot.rotation.x = THREE.MathUtils.lerp(lidPivot.rotation.x, -appState.lidOpenAmount * (Math.PI * 0.44), 0.25);
+    lidPivot.position.y = 2.34 + appState.lidOpenAmount * 0.12;
+
+    // 5. physics & strict collision handling
+    const gravity = 12.0;
+
+    for (let i = appState.flyingFiles.length - 1; i >= 0; i--) {
+      const fly = appState.flyingFiles[i];
+      if (appState.isDragging && appState.dragObject === fly.modelGroup) continue;
+
+      const targetFlatX = fly.record.targetFlatX !== undefined ? fly.record.targetFlatX : -Math.PI / 2;
+      const targetFlatZ = fly.record.targetFlatZ !== undefined ? fly.record.targetFlatZ : 0;
+
+      // phase a: entering jar smoothly (scale down to 0.55 so items fit within glass jar)
+      if (fly.phase === 'entering_jar') {
+        const model = fly.modelGroup;
+        if (model.parent !== jarContentsGroup) {
+          model.position.y += fly.velocity.y * delta;
+          model.position.x = THREE.MathUtils.lerp(model.position.x, 0, 0.12);
+          model.position.z = THREE.MathUtils.lerp(model.position.z, 0, 0.12);
+          model.scale.lerp(new THREE.Vector3(0.55, 0.55, 0.55), 0.1);
+          if (model.position.y <= 2.45) {
+            scene.remove(model);
+            jarContentsGroup.add(model);
+            model.position.set(0, 2.45, 0);
+          }
+        } else {
+          model.position.y += fly.velocity.y * delta;
+          model.scale.lerp(new THREE.Vector3(0.55, 0.55, 0.55), 0.15);
+          const clampedRad = Math.min(0.18, fly.targetRad);
+          model.position.x = THREE.MathUtils.lerp(model.position.x, Math.cos(fly.targetAngle) * clampedRad, 0.15);
+          model.position.z = THREE.MathUtils.lerp(model.position.z, Math.sin(fly.targetAngle) * clampedRad, 0.15);
+          if (model.position.y <= fly.targetSlotY) {
+            model.position.y = fly.targetSlotY;
+            fly.phase = 'in_jar';
+            if (fly.record.isCoin) playCoinClink(0.35);
+            else playWoodThudSound(0.5);
+            triggerLidClose();
+          }
+        }
+        continue;
+      }
+
+      // phase b: exiting jar upward
+      if (fly.phase === 'exiting_jar') {
+        const model = fly.modelGroup;
+        if (model.parent === jarContentsGroup) {
+          model.position.y += fly.velocity.y * delta;
+          model.scale.lerp(new THREE.Vector3(1.0, 1.0, 1.0), 0.15);
+          if (model.position.y >= 2.5) {
+            const worldPos = new THREE.Vector3();
+            model.getWorldPosition(worldPos);
+            jarContentsGroup.remove(model);
+            scene.add(model);
+            model.position.copy(worldPos);
+            model.scale.set(1.0, 1.0, 1.0);
+
+            model.traverse(node => { if (node.isMesh) node.userData.location = 'table'; });
+
+            const targetX = (Math.random() - 0.5) * 2.2;
+            const targetZ = 1.45 + Math.random() * 0.8;
+            const duration = 0.85;
+            fly.velocity.x = (targetX - model.position.x) / duration;
+            fly.velocity.z = (targetZ - model.position.z) / duration;
+            fly.velocity.y = 3.4;
+            fly.phase = 'flying_to_table';
+          }
+        }
+        continue;
+      }
+
+      // phase c: ballistic flight & foolproof collision avoidance
+      if (fly.phase === 'flying_to_table') {
+        const model = fly.modelGroup;
+        model.scale.set(1.0, 1.0, 1.0);
+
+        // calculate actual object radius from bounds
+        tempBox.setFromObject(model);
+        tempBox.getSize(tempSize);
+        const itemRadius = Math.max(tempSize.x, tempSize.z) * 0.45;
+
+        if (!fly.isResting) {
+          fly.velocity.y -= gravity * delta;
+          model.position.addScaledVector(fly.velocity, delta);
+          model.rotation.x += fly.rotVel.x * delta;
+          model.rotation.y += fly.rotVel.y * delta;
+          model.rotation.z += fly.rotVel.z * delta;
+
+          // smoothly damp orientation toward flat angles
+          const alignRatio = THREE.MathUtils.clamp((2.5 - model.position.y) / 2.5, 0, 1);
+          model.rotation.x = THREE.MathUtils.lerp(model.rotation.x, targetFlatX, alignRatio * 0.16);
+          model.rotation.z = THREE.MathUtils.lerp(model.rotation.z, targetFlatZ, alignRatio * 0.16);
+
+          // table perimeter bounds
+          if (model.position.x < -3.2) { model.position.x = -3.2; fly.velocity.x = -fly.velocity.x * 0.4; }
+          if (model.position.x > 3.2) { model.position.x = 3.2; fly.velocity.x = -fly.velocity.x * 0.4; }
+          if (model.position.z < 0.9) { model.position.z = 0.9; fly.velocity.z = Math.abs(fly.velocity.z) * 0.5; }
+          if (model.position.z > 2.6) { model.position.z = 2.6; fly.velocity.z = -Math.abs(fly.velocity.z) * 0.5; }
+
+          // collision: blender base (radius 1.45 + dynamic item radius)
+          resolveRadialObstacle(model, fly, 0, 0, 1.45, itemRadius);
+
+          // collision: coin intake chute
+          if (fly.record.isCoin) {
+            const distToIntake = Math.hypot(model.position.x - 2.35, model.position.z - 0.35);
+            if (distToIntake < 1.6) {
+              consumeCoinInChute(fly.record);
+              continue;
+            }
+          } else {
+            resolveRadialObstacle(model, fly, 2.35, 0.35, 0.65, itemRadius);
+          }
+
+          // collision: coffee mug
+          resolveRadialObstacle(model, fly, 2.4, 1.45, 0.38, itemRadius);
+
+          // collision: moka pot
+          resolveRadialObstacle(model, fly, -2.0, -0.4, 0.45, itemRadius);
+
+          // exact tabletop collision clamp using box3 lowest point
+          tempBox.setFromObject(model);
+          let floorY = 0.005;
+          if (model.position.x >= -3.4 && model.position.x <= -1.8 && model.position.z >= 0.55 && model.position.z <= 1.85) {
+            floorY = 0.085;
+          }
+
+          if (tempBox.min.y <= floorY) {
+            const penetration = floorY - tempBox.min.y;
+            model.position.y += penetration;
+
+            if (fly.velocity.y < -0.8 && fly.bounces < 2) {
+              if (fly.record.isCoin) playCoinClink(0.3);
+              else playWoodThudSound(Math.abs(fly.velocity.y) / 4.0);
+              fly.velocity.y = -fly.velocity.y * 0.28;
+              fly.velocity.x *= 0.6;
+              fly.velocity.z *= 0.6;
+              fly.rotVel.multiplyScalar(0.4);
+              fly.bounces++;
+            } else {
+              fly.velocity.y = 0;
+              fly.velocity.x *= 0.82;
+              fly.velocity.z *= 0.82;
+              fly.rotVel.multiplyScalar(0.4);
+
+              if (fly.velocity.length() < 0.06) {
+                fly.velocity.set(0, 0, 0);
+                fly.rotVel.set(0, 0, 0);
+                fly.isResting = true;
+                fly.phase = 'resting_table';
+                if (fly.record.isCoin) playCoinClink(0.2);
+              }
+            }
+          }
+        } else {
+          // resting flat on table: continuously enforce obstacle clearance and zero floor clipping
+          resolveRadialObstacle(model, null, 0, 0, 1.45, itemRadius);
+          if (!fly.record.isCoin) {
+            resolveRadialObstacle(model, null, 2.35, 0.35, 0.65, itemRadius);
+          }
+          resolveRadialObstacle(model, null, 2.4, 1.45, 0.38, itemRadius);
+          resolveRadialObstacle(model, null, -2.0, -0.4, 0.45, itemRadius);
+
+          model.rotation.x = THREE.MathUtils.lerp(model.rotation.x, targetFlatX, 0.2);
+          model.rotation.z = THREE.MathUtils.lerp(model.rotation.z, targetFlatZ, 0.2);
+
+          tempBox.setFromObject(model);
+          let floorY = 0.005;
+          if (model.position.x >= -3.4 && model.position.x <= -1.8 && model.position.z >= 0.55 && model.position.z <= 1.85) {
+            floorY = 0.085;
+          }
+
+          if (tempBox.min.y < floorY || tempBox.min.y > floorY + 0.002) {
+            model.position.y += (floorY - tempBox.min.y);
+          }
+        }
+      }
+    }
+
+    // 6. blending animation
+    if (appState.isBlending) {
+      bladeAssembly.rotation.y += delta * 55;
+      jarGroup.position.x = Math.sin(elapsed * 55) * 0.014;
+      jarGroup.position.z = Math.cos(elapsed * 55) * 0.014;
+      liquidMesh.scale.x = 1.0 + Math.sin(elapsed * 12) * 0.05;
+      liquidMesh.scale.z = 1.0 + Math.sin(elapsed * 12) * 0.05;
+      liquidMesh.scale.y = 1.0;
+      liquidMesh.rotation.y += delta * 12;
+
+      splashParticles.forEach(p => {
+        p.angle += delta * p.speed;
+        p.mesh.position.x = Math.cos(p.angle) * p.rad;
+        p.mesh.position.z = Math.sin(p.angle) * p.rad;
+        p.mesh.position.y = 0.35 + ((p.y + elapsed * 1.8) % 1.4);
+      });
+
+      appState.files.concat(appState.coins).forEach(f => {
+        f.swirlAngle += delta * 12;
+        f.swirlRadius = Math.max(0.02, f.swirlRadius * 0.98);
+        f.modelGroup.position.x = Math.cos(f.swirlAngle) * f.swirlRadius;
+        f.modelGroup.position.z = Math.sin(f.swirlAngle) * f.swirlRadius;
+        f.modelGroup.position.y = Math.max(0.48, f.modelGroup.position.y - delta * 0.52);
+        f.modelGroup.rotation.y += delta * 14;
+        const curSc = f.modelGroup.scale.x;
+        const nSc = Math.max(0.01, curSc - delta * 0.45);
+        f.modelGroup.scale.set(nSc, nSc, nSc);
+      });
+    } else {
+      bladeAssembly.rotation.y += delta * 0.5;
+      jarGroup.position.x *= 0.85;
+      jarGroup.position.z *= 0.85;
+
+      appState.files.concat(appState.coins).forEach((f, i) => {
+        if (f.modelGroup.parent === jarContentsGroup && f.modelGroup.scale.x > 0.4) {
+          f.modelGroup.position.y = Math.max(0.50, f.targetY + Math.sin(elapsed * 1.8 + i) * 0.015);
+        }
+      });
+
+      if (appState.blendedResult && appState.blendedResult.modelGroup) {
+        appState.blendedResult.modelGroup.rotation.y += delta * 0.6;
+        appState.blendedResult.modelGroup.position.y = 0.52 + Math.sin(elapsed * 2) * 0.02;
+      }
+    }
+
+    renderer.render(scene, camera);
+  }
+
+  window.addEventListener('resize', () => {
+    adjustCameraFraming();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+  });
+
+  window.onload = function() {
+    animate();
+  };
+  </script>
+</body>
+</html>
